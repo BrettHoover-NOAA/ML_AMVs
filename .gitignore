@@ -6,3 +6,4 @@ clustering/*bufr_d*
 # general tidiness
 clustering/__pycache__/
 clustering/*.so
+clustering/*.out
