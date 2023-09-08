@@ -1,0 +1,454 @@
+#
+#  reads AMV data from process_AMVs_from_BUFR.py (netCDF obs-space fields), assigns a clusterID to obs, and
+#  fills clusterID field in netCDF file with appropriate values
+#
+# import all dependencies
+import numpy as np
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Point
+from netCDF4 import Dataset
+import pyproj
+import datetime
+import libpysal
+from sklearn.neighbors import NearestNeighbors
+
+
+#
+# internal functions:
+#
+# spddir_to_uwdvwd: Given a vector of wind speed and direction, return vectors of the u- and v-
+#                   components.
+# INPUTS:
+#    wspd: vector of wind speeds (float, probably m/s)
+#    wdir: vector of wind directions (float, deg)
+#
+# OUTPUTS:
+#    uwd: vector of wind u-components
+#    vwd: vector of wind v-components
+#
+# DEPENDENCIES
+#    numpy
+def spddir_to_uwdvwd(wspd, wdir):
+    degToRad = np.pi/180.
+    uwd = np.multiply(-wspd, np.sin(wdir*(degToRad)))
+    vwd = np.multiply(-wspd, np.cos(wdir*(degToRad)))
+    return uwd, vwd
+
+
+# generate_date: Given a year, month, and day, produce a datetime object
+#                with the corresponding date, setting the hour and minute to zero.
+#
+# INPUTS:
+#    year: year (int)
+#    month: month (int)
+#    day: day (int)
+#
+# OUTPUTS
+#    datetime object of (year, month, day, 0, 0)
+#
+# DEPENDENCIES:
+#
+#    datetime
+def generate_date(year, month, day):
+    return datetime.datetime(year, month, day, 0, 0)
+
+
+# add_time: Given a datetime and the hour and minute, adjust the datetimeby the chosen time.
+#
+# INPUTS:
+#    dt: datetime object
+#    hour: hour (int)
+#    minute: minute (int)
+#
+# OUTPUTS:
+#    dt, adjusted forward by chosen hour and minute values
+#
+# DEPENDENCIES:
+#    datetime 
+def add_time(dt, hour, minute):
+    return dt + datetime.timedelta(hours=int(hour)) + datetime.timedelta(minutes=int(minute))
+
+
+# define_delt: Given a datetime and epoch datetime, compute time-difference (datetime minus epoch)
+#
+# INPUTS:
+#    dt_epoch: datetime of epoch
+#    dt: datetime
+#
+# OUTPUTS:
+#    fractional hours between datetime and epoch (float)
+#
+# DEPENDENCIES:
+#    datetime
+def define_delt(dt_epoch, dt):
+    td = dt - dt_epoch
+    return (td.total_seconds())/3600.
+
+
+# define_clusters: given a geopandas dataframe with shapely POINT geometry in EPSG:4087 format,
+#                  performs a series of operations to cluster observations that collectively share
+#                  neighborbood relationships in 2D distance, pressure, time, u-component wind, and
+#                  v-component wind within defined threshold maximum values
+#
+# INPUTS:
+#
+# gdfE: geopandas dataframe containing observations to operate on, MUST have a gdfE['geometry'] in
+#       shapely POINT values with crs=EPSG:4087 (cylindrical equidistant projection, differences in m).
+#       Presumed dataframe columns
+#         geometry (shapely.geometry.Point())
+#         lat (float, degrees)
+#         lon (float, degrees)
+#         pre (float, hPa)
+#         tim (float, fractional hours relative to analysis time, i.e. location in time-window)
+#         uob (float, m/s)
+#         vob (float, m/s)
+#         obIndex (integer, index in full ob vector)
+#         clusterIndex (integer, initialized to all -1 values)
+#         onTile (integer, ==1 if observation is on tile, ==-1 if not)
+# thresholdDistance: maximum allowable distance (m) between observations to define neighborhood
+# thresholdPressure: maximum allowable pressure difference (hPa) between observations to define neighborhood
+# thresholdTime: maximum allowable time difference (hrs) between observations to define neighborhood
+# thresholdUwnd: maximum allowable u-wind difference (m/s) between observations to define neighborhood
+# thresholdVwnd: maximum allowable v-wind difference (m/s) between observations to define neighborhood
+#
+# OUTPUTS:
+#
+# gdfE2: geopandas dataframe with 'clusterIndex' filled, defining each cluster in dataset
+#
+# DEPENDENCIES:
+#
+# numpy
+# geopandas
+# pandas
+# shapely.geometry.Point
+# pysal
+# libpysal
+# sklearn.neighbors.NearestNeighbors
+def define_clusters(gdfE, thresholdDistance, thresholdPressure, thresholdTime, thresholdUwnd, thresholdVwnd):
+    #########################################################################################################
+    #
+    # Compute 2D distance relationships between observations using libpysal weights
+    #
+    # use libpysal.weights.distance.DistanceBand.from_dataframe() to compute a system of weights
+    # identifying observations that are within thresholdDistance of each other. Warnings are silenced
+    # but with silence_warnings=False you will see warnings of the form:
+    #
+    # "UserWarning: The weights matrix is not fully connected:"
+    # " There are {n1} disconnected components."
+    # " There are {n2} islands with ids: ..."
+    #
+    # We will use both the disconnected components information and the islands information when
+    # processing observations, but we can squelch the warnings since we don't need to report this
+    # information to the screen.
+    w = libpysal.weights.distance.DistanceBand.from_dataframe(df=gdfE,
+                                                              threshold=thresholdDistance,
+                                                              binary=True,
+                                                              ids=None,
+                                                              build_sp=True,
+                                                              silence_warnings=True,
+                                                              distance_metric='euclidean',
+                                                              radius=None)
+    # We can immediately trim the islands off of gdfE, these are observations with no neighbors
+    # withing thresholdDistance and as a result will definitively be single-member clusters. These
+    # will be appended back into gdfE at the end and assigned their own clusterIndex values, but
+    # for now we can remove them from the rest of the algorithm's operations.
+    # Create separate geopandas dataframe to contain islands
+    gdfE_islands = gdfE.iloc[w.islands]
+    # Reset the index numbering of gdfE_islands
+    gdfE_islands = gdfE_islands.reset_index() # moves existing index-values to 'index'
+    # Drop gdfE_islands indices from gdfE
+    gdfE=gdfE.drop(index=w.islands)
+    # Reset the index numbering of gdfE
+    gdfE = gdfE.reset_index() # moves existing index-values to 'index'
+    # Re-run libpysal.weights.distance.DistanceBand.from_dataframe() on gdfE without islands,
+    # which will yield data only across non-island data
+    w = libpysal.weights.distance.DistanceBand.from_dataframe(df=gdfE,
+                                                              threshold=thresholdDistance,
+                                                              binary=True,
+                                                              ids=None,
+                                                              build_sp=True,
+                                                              silence_warnings=True,
+                                                              distance_metric='euclidean',
+                                                              radius=None)
+    # w generates information on component-groups, which are collectively interconnected observations that
+    # are not connected to any observations outside of the component-group. For example, a set of 5
+    # observations that share distance < thresholdDistance relationships between each other, but none of
+    # those 5 observations has a similar relationship outside of the group, would be a component-group. These
+    # component-groups serve as natural dividing-lines between the observations in the dataset: knowing that
+    # no observations within a component-group are connected to observations outside of the component-group,
+    # clusters can be searched-for within each component-group individually. We will use this information
+    # to break up the task of searching for neighbors in other spaces (pressure, time, u-wind, v-wind) only
+    # within a component-group.
+    #
+    # Assign the w.component_label value for each observation to gdfE as 'compGroup'
+    gdfE = gdfE.assign(compGroup=w.component_labels)
+    # Assign a -1 value to 'compGroup' in all members in gdfE_islands to flag them as islands
+    gdfE_islands = gdfE_islands.assign(compGroup=-1)
+    #########################################################################################################
+    #
+    # Search for clusters within each component-group of the data
+    #
+    # Define a cluster index value
+    clusterID = -1  # first valid cluster will increment, so clusterIndex will begin at 0
+    # Loop over component-groups
+    for ic in np.unique(gdfE['compGroup'].values):
+        # Extract all component-neighbors from a component-group and place into a gdfEsub geopandas dataframe
+        gdfEsub = gdfE.loc[gdfE['compGroup']==ic]
+        # Compute proximity-neighbor lists among members of component-group
+        # pressure
+        neighPres = NearestNeighbors(radius=thresholdPressure)
+        neighPres.fit(np.reshape(gdfEsub['pre'].values,(-1,1)))
+        neighPresList = neighPres.radius_neighbors(np.reshape(gdfEsub['pre'].values,(-1,1)),return_distance=False)
+        # time
+        neighTime = NearestNeighbors(radius=thresholdTime)
+        neighTime.fit(np.reshape(gdfEsub['tim'].values,(-1,1)))
+        neighTimeList = neighTime.radius_neighbors(np.reshape(gdfEsub['tim'].values,(-1,1)),return_distance=False)
+        # u-wind
+        neighUwnd = NearestNeighbors(radius=thresholdUwnd)
+        neighUwnd.fit(np.reshape(gdfEsub['uob'].values,(-1,1)))
+        neighUwndList = neighUwnd.radius_neighbors(np.reshape(gdfEsub['uob'].values,(-1,1)),return_distance=False)
+        # v-wind
+        neighVwnd = NearestNeighbors(radius=thresholdVwnd)
+        neighVwnd.fit(np.reshape(gdfEsub['vob'].values,(-1,1)))
+        neighVwndList = neighVwnd.radius_neighbors(np.reshape(gdfEsub['vob'].values,(-1,1)),return_distance=False)
+        # Reset index-values of gdfEsub
+        gdfEsub = gdfEsub.reset_index()  # moves existing index-values to 'level_0'
+        # Loop through subgroup
+        for i in range(len(gdfEsub)):
+            # Check if observation i is on-tile, if not, skip this loop
+            # Check if observation i still needs to be assigned to a cluster, if not, skip this loop
+            # NOTE: Including this if-check reduces the total number of clusters (i.e. generates larger
+            #       clusters) and affects the standard-deviation statistics. It would be worth figuring
+            #       out exactly *why* this change takes place.
+            if (gdfEsub.iloc[i]['clusterIndex'] == -1) & (gdfEsub.iloc[i]['onTile'] == 1):
+                # Increment clusterID
+                clusterID = clusterID + 1
+                # Define proximity, pressure, time, and u/v similarity neighbors among subgroup members
+                # proxlist will never include observation i as a member
+                proxlist = np.where(np.isin(gdfEsub['level_0'].values, w.neighbors[gdfEsub['level_0'].values[i]]))[0]
+                # {pres,time,uwnd,vwnd}list will always include observation i as a member
+                preslist = neighPresList[i]
+                timelist = neighTimeList[i]
+                uwndlist = neighUwndList[i]
+                vwndlist = neighVwndList[i]
+                # Define cluster members by intersection of all neighborhoods
+                # since proxlist does not include observation i, it is dropped from the cluster here
+                cluster = np.intersect1d(proxlist, preslist)
+                cluster = np.intersect1d(cluster, timelist)
+                cluster = np.intersect1d(cluster, uwndlist)
+                cluster = np.intersect1d(cluster, vwndlist)
+                # Add member i back into cluster
+                cluster = np.append(i, cluster)
+                # Assign any member of cluster with a -1 (unassigned) clusterIndex to clusterID
+                gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')] = np.where(gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')]==-1,
+                                                                                          clusterID,
+                                                                                          gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')])
+        # Assign corresponding members of gdfE a clusterIndex value from gdfEsub, following clustering
+        # on component-group 
+        gdfE.set_index('index', inplace=True)
+        gdfE.update(gdfEsub.set_index('index'))
+        gdfE = gdfE.reset_index()  # to recover the initial structure
+        # Reassert column types (integers tend to turn into floats after update)
+        convert_dict = {'ob_idx': int,
+                        'clusterIndex': int,
+                        'compGroup': int
+                       }
+        gdfE = gdfE.astype(convert_dict)
+        # Reassert gdfE crs as EPSG:4087 (tends to get dropped after update, further updates give warnings
+        # about missing crs if this isn't done)
+        gdfE = gdfE.set_crs("EPSG:4087")
+    #########################################################################################################
+    #
+    # Assign clusterIndex values to single-member clusters in gdfE_islands and merge dataframes
+    #
+    # Assign each observation in gdfE_islands to its own cluster, incrementing from max(gdfE['clusterIndex'])
+    gdfE_islands['clusterIndex'] = np.arange(max(gdfE['clusterIndex']) + 1, max(gdfE['clusterIndex']) + 1 + len(gdfE_islands))
+    # Concatenate gdfE and gdfE_islands together to regenerate entire dataframe
+    gdfE2 = gpd.GeoDataFrame(pd.concat([gdfE,gdfE_islands], ignore_index=True, verify_integrity=False, sort=False))
+    # Sort gdfE2 by 'index' values and assert 'index' as dataframe index to put gdfE_islands back in-place in
+    # the proper order to match input gdfE dataframe
+    gdfE2 = gdfE2.sort_values('index')
+    gdfE2.set_index('index', inplace=True)
+    # Return gdfE2
+    return gdfE2
+
+
+#
+# begin
+#
+if __name__ == "__main__":
+    data_dir='/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering'
+    diag_file=data_dir+'/gdas.t00z.satwnd.tm00.bufr_d_2023040300.nc'
+    diag_hdl=Dataset(diag_file)
+    # read raw (meta)data
+    ob_pqc=np.asarray(diag_hdl.variables['pqc']).squeeze()
+    ob_typ=np.asarray(diag_hdl.variables['typ']).squeeze()
+    ob_pre=np.asarray(diag_hdl.variables['pre']).squeeze()
+    ob_lat=np.asarray(diag_hdl.variables['lat']).squeeze()
+    ob_lon=np.asarray(diag_hdl.variables['lon']).squeeze()
+    ob_year=np.asarray(diag_hdl.variables['year']).squeeze().astype('int')
+    ob_mon=np.asarray(diag_hdl.variables['mon']).squeeze().astype('int')
+    ob_day=np.asarray(diag_hdl.variables['day']).squeeze().astype('int')
+    ob_hour=np.asarray(diag_hdl.variables['hour']).squeeze().astype('int')
+    ob_min=np.asarray(diag_hdl.variables['minute']).squeeze().astype('int')
+    ob_spd=np.asarray(diag_hdl.variables['wspd']).squeeze()
+    ob_dir=np.asarray(diag_hdl.variables['wdir']).squeeze()
+    # computed and fixed fields:
+    # compute ob_uwd and ob_vwd from ob_spd, ob_dir
+    ob_uwd, ob_vwd = spddir_to_uwdvwd(ob_spd, ob_dir)
+    # fix longitudes to -180 to 180 format
+    fix=np.where(ob_lon>180.)
+    ob_lon[fix]=ob_lon[fix]-360.
+    # define analysis datetime
+    an_dt = datetime.datetime(2023, 4, 3, 0)
+    # compute dates (year, month, day)
+    dates = list(map(generate_date, ob_year, ob_mon, ob_day))
+    # compute datetimes (year, month, day, hour, minute) from dates and ob_hour, ob_min
+    ob_dt = np.asarray(list(map(add_time, dates, ob_hour, ob_min)))
+    # compute fractional hours relative to analysis-time
+    ob_tim = np.asarray(list(map(define_delt, np.repeat(an_dt,np.size(ob_dt)), ob_dt))).squeeze()
+    # create a vector to store clusterID values
+    ob_cid = np.nan * np.ones(np.shape(ob_pre))
+    # Pre-screening for pressure and time into discrete groups, then use DistanceBand grouping
+    # and pressure/time NearestNeighbors against all obs to reach out and include obs outside
+    # of initial screening. Perform similarity-based clustering on DistanceBand connected-groups,
+    # which can include multiple proximity-based clusters but will contain no observations with
+    # proximity-neighbors outside of the connected-group.
+    #
+    # define index of all qualifiable observations (meeting pre-QC and typ requirements)
+    # try excluding type=240 (SWIR) and type=251 (VIS) which are not assimilated in GSI
+    allidx=np.where((ob_pqc==1.)&(ob_typ>=240)&(ob_typ<=260))[0]#&(np.isin(ob_typ,[240,251])==False))[0]
+    # define index of all searching observations (meeting pressure and time requirements in subset)
+    thresDist = 100. * 1000.  # range of distance for clustering
+    thresPres = 5000. # +/- range of pressure bin
+    thresTime = 0.5  # +/- range of time bin
+    thresUwnd = 5.0  # +/- range of u-wind differences for clustering
+    thresVwnd = 5.0  # +/- range of v-wind differences for clustering
+    srcPres = 45000.  # center of pressure bin
+    srcTime = -2.0  # center of time bin
+    # let's define a tile based on a pressure- and time-range search around srcPres, srcTime
+    tilePres = 10000. # +/- range of pressure for defining tile
+    tileTime = 1.0    # +/- range of time for defining tile
+    minPres = srcPres - tilePres
+    maxPres = srcPres + tilePres
+    minTime = srcTime - tileTime
+    maxTime = srcTime + tileTime
+    # generate a set of indexes for variables on-tile
+    tileidx=np.intersect1d(allidx,np.where((ob_pre <= maxPres)&(ob_pre >= minPres) &
+                                           (ob_tim <= maxTime)&(ob_tim >= minTime))[0])
+    # define index of all tile+halo observations
+    minPresExp = minPres - thresPres
+    maxPresExp = maxPres + thresPres
+    minTimeExp = minTime - thresTime
+    maxTimeExp = maxTime + thresTime
+    # expidx = index of total (tile+halo) "expanded search"
+    expidx=np.intersect1d(allidx,np.where((ob_pre <= maxPresExp)&(ob_pre >= minPresExp) &
+                                          (ob_tim <= maxTimeExp)&(ob_tim >= minTimeExp))[0])
+    # halidx = index of halo, difference between expanded search and search
+    halidx=np.setdiff1d(expidx,tileidx)
+    # construct a geopandas point dataset that contains all relevant ob-info
+    point_list=[]
+    tile_list=[]
+    for i in expidx:
+        point_list.append(Point(ob_lon[i],ob_lat[i]))
+        if i in tileidx:
+            tile_list.append(1)
+        else:
+            tile_list.append(-1)
+    d = {'geometry': point_list, 
+         'lat': list(ob_lat[expidx]),
+         'lon': list(ob_lon[expidx]),
+         'pre': list(ob_pre[expidx]),
+         'tim': list(ob_tim[expidx]),
+         'uob': list(ob_uwd[expidx]),
+         'vob': list(ob_vwd[expidx]),
+         'ob_idx': list(expidx),
+         'clusterIndex': -1,  # placeholder, -1 == no assigned cluster
+         'onTile': tile_list  # is observation on tile (True) or on halo (False)
+        }
+    gdf = gpd.GeoDataFrame(d, crs="EPSG:4326")
+    # transform gdf into cylindrical equidistant projection, where Point() units are in m
+    gdfE = gdf.to_crs("EPSG:4087")
+    # define clusters and assign clusterID values to each observation on-tile or within
+    # halo, if the halo observation was assigned
+    gdfE2 = define_clusters(gdfE, thresDist, thresPres, thresTime, thresUwnd, thresVwnd)
+    # define gdfEonTile as only those gdfE2 rows that are on-tile
+    gdfEonTile = gdfE2.loc[gdfE2['onTile']==1]
+    gdfEonHalo = gdfE2.loc[gdfE2['onTile']==-1]
+    # assign ob_cid values to all obs on tile, and to all non -1 clusterIndex values on halo
+    ob_cid[gdfEonTile['ob_idx'].values] = gdfEonTile['clusterIndex'].values
+    ob_cid[gdfEonHalo.loc[gdfEonHalo['clusterIndex'] != -1, 'ob_idx'].values] = gdfEonHalo.loc[gdfEonHalo['clusterIndex'] != -1, 'clusterIndex'].values
+    # write ob_cid to output file
+    nc_out_filename = data_dir+'/gdas.t00z.satwnd.tm00.bufr_d_2023040300_clustering.nc'
+    nc_out = Dataset( 
+                      nc_out_filename  , # Dataset input: Output file name
+                      'w'              , # Dataset input: Make file write-able
+                      format='NETCDF4' , # Dataset input: Set output format to netCDF4
+                    )
+    # Dimensions
+    ob  = nc_out.createDimension( 
+                                 'ob' , # nc_out.createDimension input: Dimension name 
+                                 None    # nc_out.createDimension input: Dimension size limit ("None" == unlimited)
+                                 )
+    # Variables
+    lat = nc_out.createVariable(
+                                  'lat'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    lon= nc_out.createVariable(
+                                  'lon'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    pre = nc_out.createVariable(
+                                  'pre'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    tim = nc_out.createVariable(
+                                  'tim'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    uwd = nc_out.createVariable(
+                                  'uwd'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    vwd = nc_out.createVariable(
+                                  'vwd'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    typ = nc_out.createVariable(
+                                  'typ'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    pqc = nc_out.createVariable(
+                                  'pqc'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    cid = nc_out.createVariable(
+                                  'cid'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
+    # Fill netCDF file variables
+    lat[:]      = ob_lat
+    lon[:]      = ob_lon
+    pre[:]      = ob_pre
+    tim[:]      = ob_tim
+    uwd[:]      = ob_uwd
+    vwd[:]      = ob_vwd
+    typ[:]      = ob_typ
+    pqc[:]      = ob_pqc
+    cid[:]      = ob_cid
+    # Close netCDF file
+    nc_out.close()
+#
+# end
+#

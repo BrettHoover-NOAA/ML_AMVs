@@ -1,0 +1,8 @@
+# test-data
+clustering/*.nc
+clustering/*.gz
+clustering/*.png
+clustering/*bufr_d*
+# general tidiness
+clustering/__pycache__/
+clustering/*.so
