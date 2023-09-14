@@ -18,4 +18,11 @@ conda env list
 #
 # Execution
 #
-python assign_AMV_clusters.py
+anaDateTime=2023040300
+dataDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering
+netcdfFileName=gdas.t00z.satwnd.tm00.bufr_d_2023040300.nc
+yamlFile=tiles.yaml
+tileName=Tile_1
+
+python assign_AMV_clusters.py ${anaDateTime} ${dataDir} ${netcdfFileName} ${yamlFile} ${tileName}
+

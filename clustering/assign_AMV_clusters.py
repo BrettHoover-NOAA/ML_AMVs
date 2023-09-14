@@ -12,11 +12,78 @@ import pyproj
 import datetime
 import libpysal
 from sklearn.neighbors import NearestNeighbors
-
+import yaml
+import argparse
 
 #
 # internal functions:
 #
+# parse_yaml: Given a YAML file and a requested tile, parse inputs and return variables
+#
+# INPUTS:
+#    yamlFile: name of YAML file (string)
+#    tileName: name of tile (string, "Tile_N" format)
+#
+# OUTPUTS:
+#    tuple containing all tile data (see below for details)
+#
+# DEPENDENCIES:
+#    yaml 
+def parse_yaml(yamlFile, tileName):
+    # YAML entries are nested for each Tile:
+    # Tile_1:
+    #      tileValue: ........................ numerical index of tile (int)
+    #      tilePressureMin: .................. minimum pressure on tile (float, Pa)
+    #      tilePressureMax: .................. maximum pressure on tile (float, Pa)
+    #      tileTimeMin: ...................... minimum time on tile (float, fractional hours)
+    #      tileTimeMax: ...................... maximum time on tile (float, fractional hours)
+    #      haloPressureMin: .................. minimum pressure on halo (float, Pa)
+    #      haloPressureMax: .................. maximum pressure on halo (float, Pa)
+    #      haloTimeMin: ...................... minimum time on halo (float, fractional hours)
+    #      haloTimeMax: ...................... maximum time on halo (float, fractional hours)
+    # Tile_2:
+    #      tileValue:
+    #      ...
+    with open(yamlFile, 'r') as stream:
+        try:
+            parsed_yaml = yaml.safe_load(stream)
+        except yaml.YAMLError as YAMLError:
+            parsed_yaml = None
+            print(f'YAMLError: {YAMLError}')
+        if parsed_yaml is not None:
+            # Select tile
+            try:
+                tileDict = parsed_yaml[tileName]
+            except KeyError as MissingTileError:
+                tileDict = None
+                print(f'MissingTileError: {MissingTileError}')
+            # Extract tile data 
+            try:
+                tileValue = tileDict['tileValue']
+                tilePressureMin = tileDict['tilePressureMin']
+                tilePressureMax = tileDict['tilePressureMax']
+                tileTimeMin = tileDict['tileTimeMin']
+                tileTimeMax = tileDict['tileTimeMax']
+                haloPressureMin = tileDict['haloPressureMin']
+                haloPressureMax = tileDict['haloPressureMax']
+                haloTimeMin = tileDict['haloTimeMin']
+                haloTimeMax = tileDict['haloTimeMax']
+            except KeyError as MissingDataError:
+                tileValue = None
+                tilePressureMin = None
+                tilePressureMax = None
+                tileTimeMin = None
+                tileTimeMax = None
+                haloPressureMin = None
+                haloPressureMax = None
+                haloTimeMin = None
+                haloTimeMax = None
+                print(f'MissingDataError: {MissingDataError}')
+    # return tile data
+    return (tileValue, tilePressureMin, tilePressureMax, tileTimeMin, tileTimeMax,
+            haloPressureMin, haloPressureMax, haloTimeMin, haloTimeMax)
+
+
 # spddir_to_uwdvwd: Given a vector of wind speed and direction, return vectors of the u- and v-
 #                   components.
 # INPUTS:
@@ -278,22 +345,35 @@ def define_clusters(gdfE, thresholdDistance, thresholdPressure, thresholdTime, t
 # begin
 #
 if __name__ == "__main__":
-    data_dir='/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering'
-    diag_file=data_dir+'/gdas.t00z.satwnd.tm00.bufr_d_2023040300.nc'
-    diag_hdl=Dataset(diag_file)
+    # define argparser for inputs
+    parser = argparse.ArgumentParser(description='define full-path to data directory and name of ' +
+                                                 'netCDF AMV file from process_AMVs_from_BUFR.py')
+    parser.add_argument('anaDateTime', metavar='DTIME', type=str, help='YYYYMMDDHH of analysis')
+    parser.add_argument('dataDir', metavar='DATADIR', type=str, help='full path to data directory')
+    parser.add_argument('netcdfFileName', metavar='INFILE', type=str, help='netCDF AMV file')
+    parser.add_argument('yamlFile', metavar='YAML', type=str, help='YAML file defining tiles')
+    parser.add_argument('tileName', metavar='TILE', type=str, help='name of tile in YAML file to process')
+    # parse arguments
+    userInputs = parser.parse_args()
+    # quality-control inputs: if userInputs.dataDir does not end in '/', append it
+    dataDir = userInputs.dataDir + '/' if userInputs.dataDir[-1] != '/' else userInputs.dataDir
+    netcdfFileName = userInputs.netcdfFileName
+    #data_dir='/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering'
+    #diag_file=data_dir+'/gdas.t00z.satwnd.tm00.bufr_d_2023040300.nc'
+    hdl=Dataset(dataDir + netcdfFileName)
     # read raw (meta)data
-    ob_pqc=np.asarray(diag_hdl.variables['pqc']).squeeze()
-    ob_typ=np.asarray(diag_hdl.variables['typ']).squeeze()
-    ob_pre=np.asarray(diag_hdl.variables['pre']).squeeze()
-    ob_lat=np.asarray(diag_hdl.variables['lat']).squeeze()
-    ob_lon=np.asarray(diag_hdl.variables['lon']).squeeze()
-    ob_year=np.asarray(diag_hdl.variables['year']).squeeze().astype('int')
-    ob_mon=np.asarray(diag_hdl.variables['mon']).squeeze().astype('int')
-    ob_day=np.asarray(diag_hdl.variables['day']).squeeze().astype('int')
-    ob_hour=np.asarray(diag_hdl.variables['hour']).squeeze().astype('int')
-    ob_min=np.asarray(diag_hdl.variables['minute']).squeeze().astype('int')
-    ob_spd=np.asarray(diag_hdl.variables['wspd']).squeeze()
-    ob_dir=np.asarray(diag_hdl.variables['wdir']).squeeze()
+    ob_pqc=np.asarray(hdl.variables['pqc']).squeeze()
+    ob_typ=np.asarray(hdl.variables['typ']).squeeze()
+    ob_pre=np.asarray(hdl.variables['pre']).squeeze()
+    ob_lat=np.asarray(hdl.variables['lat']).squeeze()
+    ob_lon=np.asarray(hdl.variables['lon']).squeeze()
+    ob_year=np.asarray(hdl.variables['year']).squeeze().astype('int')
+    ob_mon=np.asarray(hdl.variables['mon']).squeeze().astype('int')
+    ob_day=np.asarray(hdl.variables['day']).squeeze().astype('int')
+    ob_hour=np.asarray(hdl.variables['hour']).squeeze().astype('int')
+    ob_min=np.asarray(hdl.variables['minute']).squeeze().astype('int')
+    ob_spd=np.asarray(hdl.variables['wspd']).squeeze()
+    ob_dir=np.asarray(hdl.variables['wdir']).squeeze()
     # computed and fixed fields:
     # compute ob_uwd and ob_vwd from ob_spd, ob_dir
     ob_uwd, ob_vwd = spddir_to_uwdvwd(ob_spd, ob_dir)
@@ -301,7 +381,8 @@ if __name__ == "__main__":
     fix=np.where(ob_lon>180.)
     ob_lon[fix]=ob_lon[fix]-360.
     # define analysis datetime
-    an_dt = datetime.datetime(2023, 4, 3, 0)
+    an_dt = datetime.datetime.strptime(userInputs.anaDateTime,'%Y%m%d%H')
+    #an_dt = datetime.datetime(2023, 4, 3, 0)
     # compute dates (year, month, day)
     dates = list(map(generate_date, ob_year, ob_mon, ob_day))
     # compute datetimes (year, month, day, hour, minute) from dates and ob_hour, ob_min
@@ -325,26 +406,31 @@ if __name__ == "__main__":
     thresTime = 0.5  # +/- range of time bin
     thresUwnd = 5.0  # +/- range of u-wind differences for clustering
     thresVwnd = 5.0  # +/- range of v-wind differences for clustering
-    srcPres = 45000.  # center of pressure bin
-    srcTime = -2.0  # center of time bin
-    # let's define a tile based on a pressure- and time-range search around srcPres, srcTime
-    tilePres = 10000. # +/- range of pressure for defining tile
-    tileTime = 1.0    # +/- range of time for defining tile
-    minPres = srcPres - tilePres
-    maxPres = srcPres + tilePres
-    minTime = srcTime - tileTime
-    maxTime = srcTime + tileTime
+    # extract tile and halo data from yamlFile
+    (tileValue, tilePresMin, tilePresMax, tileTimeMin, tileTimeMax,
+     haloPresMin, haloPresMax, haloTimeMin, haloTimeMax) = parse_yaml(userInputs.yamlFile,
+                                                                      userInputs.tileName)
+
+    #srcPres = 45000.  # center of pressure bin
+    #srcTime = -2.0  # center of time bin
+    ## let's define a tile based on a pressure- and time-range search around srcPres, srcTime
+    #tilePres = 10000. # +/- range of pressure for defining tile
+    #tileTime = 1.0    # +/- range of time for defining tile
+    #minPres = srcPres - tilePresMin
+    #maxPres = srcPres + tilePresMax
+    #minTime = srcTime - tileTimeMin
+    #maxTime = srcTime + tileTimeMax
     # generate a set of indexes for variables on-tile
-    tileidx=np.intersect1d(allidx,np.where((ob_pre <= maxPres)&(ob_pre >= minPres) &
-                                           (ob_tim <= maxTime)&(ob_tim >= minTime))[0])
-    # define index of all tile+halo observations
-    minPresExp = minPres - thresPres
-    maxPresExp = maxPres + thresPres
-    minTimeExp = minTime - thresTime
-    maxTimeExp = maxTime + thresTime
+    tileidx=np.intersect1d(allidx,np.where((ob_pre <= tilePresMax)&(ob_pre >= tilePresMin) &
+                                           (ob_tim <= tileTimeMax)&(ob_tim >= tileTimeMin))[0])
+    ## define index of all tile+halo observations
+    #minPresExp = minPres - thresPres
+    #maxPresExp = maxPres + thresPres
+    #minTimeExp = minTime - thresTime
+    #maxTimeExp = maxTime + thresTime
     # expidx = index of total (tile+halo) "expanded search"
-    expidx=np.intersect1d(allidx,np.where((ob_pre <= maxPresExp)&(ob_pre >= minPresExp) &
-                                          (ob_tim <= maxTimeExp)&(ob_tim >= minTimeExp))[0])
+    expidx=np.intersect1d(allidx,np.where((ob_pre <= haloPresMax)&(ob_pre >= haloPresMin) &
+                                          (ob_tim <= haloTimeMax)&(ob_tim >= haloTimeMin))[0])
     # halidx = index of halo, difference between expanded search and search
     halidx=np.setdiff1d(expidx,tileidx)
     # construct a geopandas point dataset that contains all relevant ob-info
@@ -380,75 +466,89 @@ if __name__ == "__main__":
     ob_cid[gdfEonTile['ob_idx'].values] = gdfEonTile['clusterIndex'].values
     ob_cid[gdfEonHalo.loc[gdfEonHalo['clusterIndex'] != -1, 'ob_idx'].values] = gdfEonHalo.loc[gdfEonHalo['clusterIndex'] != -1, 'clusterIndex'].values
     # write ob_cid to output file
-    nc_out_filename = data_dir+'/gdas.t00z.satwnd.tm00.bufr_d_2023040300_clustering.nc'
-    nc_out = Dataset( 
-                      nc_out_filename  , # Dataset input: Output file name
+    # output file-name is same as netcdfFileName, except tileName is included at the end prior to '.nc'
+    ncOutFileName = dataDir + netcdfFileName[0:-3] + '_' + userInputs.tileName + '.nc'
+    ncOut = Dataset( 
+                      ncOutFileName  , # Dataset input: Output file name
                       'w'              , # Dataset input: Make file write-able
                       format='NETCDF4' , # Dataset input: Set output format to netCDF4
                     )
-    # Dimensions
-    ob  = nc_out.createDimension( 
+    # add dimensions
+    ob  = ncOut.createDimension( 
                                  'ob' , # nc_out.createDimension input: Dimension name 
                                  None    # nc_out.createDimension input: Dimension size limit ("None" == unlimited)
                                  )
-    # Variables
-    lat = nc_out.createVariable(
+    # add variables
+    lat = ncOut.createVariable(
                                   'lat'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    lon= nc_out.createVariable(
+    lon= ncOut.createVariable(
                                   'lon'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    pre = nc_out.createVariable(
+    pre = ncOut.createVariable(
                                   'pre'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    tim = nc_out.createVariable(
+    tim = ncOut.createVariable(
                                   'tim'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    uwd = nc_out.createVariable(
+    uwd = ncOut.createVariable(
                                   'uwd'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    vwd = nc_out.createVariable(
+    vwd = ncOut.createVariable(
                                   'vwd'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    typ = nc_out.createVariable(
+    typ = ncOut.createVariable(
                                   'typ'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    pqc = nc_out.createVariable(
+    idx = ncOut.createVariable(
+                                  'idx'       ,
+                                  'i8'        ,
+                                  ('ob')
+                               )
+    pqc = ncOut.createVariable(
                                   'pqc'       ,
                                   'f8'        ,
                                   ('ob')
                                 )
-    cid = nc_out.createVariable(
+    tid = ncOut.createVariable(   'tid'       ,
+                                  'i8'        ,
+                                  ('ob')
+                              )
+    cid = ncOut.createVariable(
                                   'cid'       ,
-                                  'f8'        ,
+                                  'i8'        ,
                                   ('ob')
                                 )
-    # Fill netCDF file variables
-    lat[:]      = ob_lat
-    lon[:]      = ob_lon
-    pre[:]      = ob_pre
-    tim[:]      = ob_tim
-    uwd[:]      = ob_uwd
-    vwd[:]      = ob_vwd
-    typ[:]      = ob_typ
-    pqc[:]      = ob_pqc
-    cid[:]      = ob_cid
-    # Close netCDF file
-    nc_out.close()
+    # fill netCDF file variables with only those observations with an assigned clusterIndex (partial output)
+    ob_idx = np.arange(np.size(ob_lat))  # ob-index values for all obs
+    x = np.where((np.isnan(ob_cid) == False) &(ob_cid != -1))  # currently no obs on-tile have -1 clusterIndex, may change later
+    lat[:]      = ob_lat[x]
+    lon[:]      = ob_lon[x]
+    pre[:]      = ob_pre[x]
+    tim[:]      = ob_tim[x]
+    uwd[:]      = ob_uwd[x]
+    vwd[:]      = ob_vwd[x]
+    typ[:]      = ob_typ[x]
+    idx[:]      = ob_idx[x]  # ob-index: retains order of observations from input netCDF file
+    pqc[:]      = ob_pqc[x]
+    tid[:]      = tileValue * np.ones((np.size(x),))  # tile-index: retains which tile observation was connected to for cluster assignment
+    cid[:]      = ob_cid[x]
+    # close ncOut
+    ncOut.close()
 #
 # end
 #

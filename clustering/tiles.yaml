@@ -1,0 +1,12 @@
+Tile_1:
+   tileValue: 1
+   tilePressureMin: 35000.
+   tilePressureMax: 55000.
+   tileTimeMin: -3.
+   tileTimeMax: -1.
+   haloPressureMin: 30000.
+   haloPressureMax: 60000.
+   haloTimeMin: -3.5
+   haloTimeMax: -0.5
+
+
