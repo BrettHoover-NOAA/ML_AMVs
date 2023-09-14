@@ -289,8 +289,6 @@ def define_clusters(gdfE, thresholdDistance, thresholdPressure, thresholdTime, t
             #       clusters) and affects the standard-deviation statistics. It would be worth figuring
             #       out exactly *why* this change takes place.
             if (gdfEsub.iloc[i]['clusterIndex'] == -1) & (gdfEsub.iloc[i]['onTile'] == 1):
-                # Increment clusterID
-                clusterID = clusterID + 1
                 # Define proximity, pressure, time, and u/v similarity neighbors among subgroup members
                 # proxlist will never include observation i as a member
                 proxlist = np.where(np.isin(gdfEsub['level_0'].values, w.neighbors[gdfEsub['level_0'].values[i]]))[0]
@@ -307,10 +305,15 @@ def define_clusters(gdfE, thresholdDistance, thresholdPressure, thresholdTime, t
                 cluster = np.intersect1d(cluster, vwndlist)
                 # Add member i back into cluster
                 cluster = np.append(i, cluster)
-                # Assign any member of cluster with a -1 (unassigned) clusterIndex to clusterID
-                gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')] = np.where(gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')]==-1,
-                                                                                          clusterID,
-                                                                                          gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')])
+                # IF cluster contains more than one member (i.e. more than just observation i),
+                # assign any member of cluster with a -1 (unassigned) clusterIndex to clusterID
+                if np.size(cluster) > 1:
+                    # increment clusterID
+                    clusterID += 1
+                    # assign clusterID to members of cluster
+                    gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')] = np.where(gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')]==-1,
+                                                                                              clusterID,
+                                                                                              gdfEsub.iloc[cluster, gdfEsub.columns.get_loc('clusterIndex')])
         # Assign corresponding members of gdfE a clusterIndex value from gdfEsub, following clustering
         # on component-group 
         gdfE.set_index('index', inplace=True)
@@ -358,8 +361,6 @@ if __name__ == "__main__":
     # quality-control inputs: if userInputs.dataDir does not end in '/', append it
     dataDir = userInputs.dataDir + '/' if userInputs.dataDir[-1] != '/' else userInputs.dataDir
     netcdfFileName = userInputs.netcdfFileName
-    #data_dir='/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering'
-    #diag_file=data_dir+'/gdas.t00z.satwnd.tm00.bufr_d_2023040300.nc'
     hdl=Dataset(dataDir + netcdfFileName)
     # read raw (meta)data
     ob_pqc=np.asarray(hdl.variables['pqc']).squeeze()
@@ -382,7 +383,6 @@ if __name__ == "__main__":
     ob_lon[fix]=ob_lon[fix]-360.
     # define analysis datetime
     an_dt = datetime.datetime.strptime(userInputs.anaDateTime,'%Y%m%d%H')
-    #an_dt = datetime.datetime(2023, 4, 3, 0)
     # compute dates (year, month, day)
     dates = list(map(generate_date, ob_year, ob_mon, ob_day))
     # compute datetimes (year, month, day, hour, minute) from dates and ob_hour, ob_min
@@ -410,29 +410,15 @@ if __name__ == "__main__":
     (tileValue, tilePresMin, tilePresMax, tileTimeMin, tileTimeMax,
      haloPresMin, haloPresMax, haloTimeMin, haloTimeMax) = parse_yaml(userInputs.yamlFile,
                                                                       userInputs.tileName)
-
-    #srcPres = 45000.  # center of pressure bin
-    #srcTime = -2.0  # center of time bin
-    ## let's define a tile based on a pressure- and time-range search around srcPres, srcTime
-    #tilePres = 10000. # +/- range of pressure for defining tile
-    #tileTime = 1.0    # +/- range of time for defining tile
-    #minPres = srcPres - tilePresMin
-    #maxPres = srcPres + tilePresMax
-    #minTime = srcTime - tileTimeMin
-    #maxTime = srcTime + tileTimeMax
     # generate a set of indexes for variables on-tile
     tileidx=np.intersect1d(allidx,np.where((ob_pre <= tilePresMax)&(ob_pre >= tilePresMin) &
                                            (ob_tim <= tileTimeMax)&(ob_tim >= tileTimeMin))[0])
-    ## define index of all tile+halo observations
-    #minPresExp = minPres - thresPres
-    #maxPresExp = maxPres + thresPres
-    #minTimeExp = minTime - thresTime
-    #maxTimeExp = maxTime + thresTime
     # expidx = index of total (tile+halo) "expanded search"
     expidx=np.intersect1d(allidx,np.where((ob_pre <= haloPresMax)&(ob_pre >= haloPresMin) &
                                           (ob_tim <= haloTimeMax)&(ob_tim >= haloTimeMin))[0])
     # halidx = index of halo, difference between expanded search and search
     halidx=np.setdiff1d(expidx,tileidx)
+    print('{:d} observations in tile+halo'.format(np.size(expidx)))
     # construct a geopandas point dataset that contains all relevant ob-info
     point_list=[]
     tile_list=[]
@@ -462,9 +448,9 @@ if __name__ == "__main__":
     # define gdfEonTile as only those gdfE2 rows that are on-tile
     gdfEonTile = gdfE2.loc[gdfE2['onTile']==1]
     gdfEonHalo = gdfE2.loc[gdfE2['onTile']==-1]
-    # assign ob_cid values to all obs on tile, and to all non -1 clusterIndex values on halo
+    # assign ob_cid values to all obs on tile+halo
     ob_cid[gdfEonTile['ob_idx'].values] = gdfEonTile['clusterIndex'].values
-    ob_cid[gdfEonHalo.loc[gdfEonHalo['clusterIndex'] != -1, 'ob_idx'].values] = gdfEonHalo.loc[gdfEonHalo['clusterIndex'] != -1, 'clusterIndex'].values
+    ob_cid[gdfEonHalo['ob_idx'].values] = gdfEonHalo['clusterIndex'].values
     # write ob_cid to output file
     # output file-name is same as netcdfFileName, except tileName is included at the end prior to '.nc'
     ncOutFileName = dataDir + netcdfFileName[0:-3] + '_' + userInputs.tileName + '.nc'
@@ -533,9 +519,20 @@ if __name__ == "__main__":
                                   'i8'        ,
                                   ('ob')
                                 )
-    # fill netCDF file variables with only those observations with an assigned clusterIndex (partial output)
-    ob_idx = np.arange(np.size(ob_lat))  # ob-index values for all obs
-    x = np.where((np.isnan(ob_cid) == False) &(ob_cid != -1))  # currently no obs on-tile have -1 clusterIndex, may change later
+    # assign netCDF file attributes
+    ncOut.tilePressureMinimum = tilePresMin
+    ncOut.tilePressureMaximum = tilePresMax
+    ncOut.tileTimeMinimum = tileTimeMin
+    ncOut.tileTimeMaximum = tileTimeMax
+    ncOut.haloPressureMinimum = haloPresMin
+    ncOut.haloPressureMaximum = haloPresMax
+    ncOut.haloTimeMinimum = haloTimeMin
+    ncOut.haloTimeMaximum = haloTimeMax
+    ncOut.analysisDateTime = userInputs.anaDateTime
+    ncOut.tileName = userInputs.tileName
+    ncOut.sourceFile = userInputs.netcdfFileName
+    # fill netCDF file variables with only observations on-tile+halo (partial output)
+    x = expidx
     lat[:]      = ob_lat[x]
     lon[:]      = ob_lon[x]
     pre[:]      = ob_pre[x]
@@ -543,7 +540,7 @@ if __name__ == "__main__":
     uwd[:]      = ob_uwd[x]
     vwd[:]      = ob_vwd[x]
     typ[:]      = ob_typ[x]
-    idx[:]      = ob_idx[x]  # ob-index: retains order of observations from input netCDF file
+    idx[:]      = x  # ob-index: retains order of observations from input netCDF file
     pqc[:]      = ob_pqc[x]
     tid[:]      = tileValue * np.ones((np.size(x),))  # tile-index: retains which tile observation was connected to for cluster assignment
     cid[:]      = ob_cid[x]
