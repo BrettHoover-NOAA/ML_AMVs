@@ -105,13 +105,17 @@ def shift_clusterID(tileID, clusterID):
 if __name__ == "__main__":
     # generate an argument parser to accept command-line inputs:
     parser = argparse.ArgumentParser(description='Define search-string for tiles, and output file-name')
-    parser.add_argument('searchString', metavar='SRCHSTR', type=str, help='search string with wildcards for locating tiles')
+    parser.add_argument('dataDir', metavar='DATADIR', type=str, help='full-path to data directory (ends in /)')
+    parser.add_argument('searchString', metavar='SRCHSTR', type=str, help='search string up to but not including wildcard for locating tiles')
     parser.add_argument('outputNetcdfFileName', metavar='OUTFILE', type=str, help='name of output netCDF file')
-    #userInputs = parser.parse_args()
-    userInputs = parser.parse_args(['test-data/tiles/*_Tile_*.nc',
-                                    'gdas.t00z.satwnd.tm00.bufr_d_2023040300_all_Tiles.nc'])
+    userInputs = parser.parse_args()
+    #userInputs = parser.parse_args(['/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering',
+    #                                'gdas.t00z.satwnd.tm00.bufr_d_2023040300_Tile_*.nc',
+    #                                'gdas.t00z.satwnd.tm00.bufr_d_2023040300_reconciled.nc'])
+    # quality-control inputs: if userInputs.dataDir does not end in '/', append it
+    dataDir = userInputs.dataDir + '/' if userInputs.dataDir[-1] != '/' else userInputs.dataDir
     # find list of tile files to process
-    tileList = glob(userInputs.searchString)
+    tileList = glob(dataDir + userInputs.searchString + '*' + '.nc')
     tileList.sort()
     print('processing {:d} tiles'.format(len(tileList)))
     # initialize empty arrays to store data across all tiles
@@ -180,7 +184,7 @@ if __name__ == "__main__":
     # shift clusterIDs
     shift_clusterID(amvTID, amvCID)
     # output to netCDF
-    ncOutFileName = userInputs.outputNetcdfFileName
+    ncOutFileName = dataDir + userInputs.outputNetcdfFileName
     ncOut = Dataset( 
                       ncOutFileName  , # Dataset input: Output file name
                       'w'              , # Dataset input: Make file write-able
