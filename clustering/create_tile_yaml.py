@@ -42,21 +42,18 @@ if __name__ == "__main__":
     # define argparser for inputs
     parser = argparse.ArgumentParser(description='define tile and halo specifications')
     parser.add_argument('nPreBins', metavar='PREBINS', type=int, help='number of pressure-bins')
-    parser.add_argument('nTimBins', metavar='TIMBINS', type=int, help='number of time-bins')
     parser.add_argument('preMin', metavar='PREMIN', type=float, help='minimum pressure to tile (Pa)')
     parser.add_argument('preMax', metavar='PREMAX', type=float, help='maximum pressure to tile (Pa)')
+    parser.add_argument('preHalo', metavar='PREHALO', type=float, help='extent of halo in pressure-dimension (Pa)')
+    parser.add_argument('nTimBins', metavar='TIMBINS', type=int, help='number of time-bins')
     parser.add_argument('timMin', metavar='TIMMIN', type=float, help='minimum time to tile (frac. hrs)')
     parser.add_argument('timMax', metavar='TIMMAX', type=float, help='maximum time to tile (frac. hrs)')
-    parser.add_argument('preHalo', metavar='PREHALO', type=float, help='extent of halo in pressure-dimension (Pa)')
     parser.add_argument('timHalo', metavar='TIMHALO', type=float, help='extent of halo in time-dimension (frac. hrs)')
     # parse arguments
     userInputs = parser.parse_args()
-    # define some buffers around pressure and time to apply to the hard-limits prescribed by the user
-    preBuffer = 2500.
-    timBuffer = 0.
-    # create pressure- and time-dimension bin edges based on user specifications, including buffers
-    preBinEdges = np.linspace(start=userInputs.preMin - preBuffer, stop=userInputs.preMax + preBuffer, num=userInputs.nPreBins + 1)
-    timBinEdges = np.linspace(start=userInputs.timMin - timBuffer, stop=userInputs.timMax + timBuffer, num=userInputs.nTimBins + 1)
+    # create pressure- and time-dimension bin edges based on user specifications
+    preBinEdges = np.linspace(start=userInputs.preMin, stop=userInputs.preMax, num=userInputs.nPreBins + 1)
+    timBinEdges = np.linspace(start=userInputs.timMin, stop=userInputs.timMax, num=userInputs.nTimBins + 1)
     # run generate_tile_yaml() to report YAML as screen text
     generate_tile_yaml(preBinEdges, timBinEdges, userInputs.preHalo, userInputs.timHalo)
 #

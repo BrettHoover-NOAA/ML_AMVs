@@ -18,12 +18,12 @@ conda env list
 #
 # Execution
 #
-nPreBins=6
-nTimBins=5
-preMin=12500.0
-preMax=107500.0
-timMin=-3.0
-timMax=3.0
-preHalo=5000.0
-timHalo=0.5
-python create_tile_yaml.py ${nPreBins} ${nTimBins} ${preMin} ${preMax} ${timMin} ${timMax} ${preHalo} ${timHalo} > tiles.yaml
+nPreBins=${1}
+minTilePre=${2}
+maxTilePre=${3}
+haloPre=${4}
+nTimBins=${5}
+minTileTim=${6}
+maxTileTim=${7}
+haloTim=${8}
+python create_tile_yaml.py ${nPreBins} ${minTilePre} ${maxTilePre} ${haloPre} ${nTimBins} ${minTileTim} ${maxTileTim} ${haloTim} > tiles.yaml

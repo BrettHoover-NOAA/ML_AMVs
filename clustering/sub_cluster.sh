@@ -1,10 +1,22 @@
 #! /bin/bash
-
+# datetime settings
 YYYY=2023
 MM=04
 DD=03
-HH=06
+HH=12
 anaDateTime=${YYYY}${MM}${DD}${HH}
+# tile settings
+nPreBins=6
+minTilePre=10000.0
+maxTilePre=110000.0
+haloPre=5000.0
+nTimBins=5
+minTileTim=-3.0
+maxTileTim=3.0
+haloTim=0.5
+
+
+./run_create_tile_yaml.sh ${nPreBins} ${minTilePre} ${maxTilePre} ${haloPre} ${nTimBins} ${minTileTim} ${maxTileTim} ${haloTim}
 
 jid_process_BUFR=$(sbatch --parsable -A da-cpu -N 1 -t 0:30:00 --job-name=process_bufr exec_process_BUFR.sh ${anaDateTime} ${HH})
 
