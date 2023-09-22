@@ -9,7 +9,6 @@ import pandas as pd
 from shapely.geometry import Point
 from netCDF4 import Dataset
 import pyproj
-import datetime
 import libpysal
 from sklearn.neighbors import NearestNeighbors
 import yaml
@@ -82,75 +81,6 @@ def parse_yaml(yamlFile, tileName):
     # return tile data
     return (tileValue, tilePressureMin, tilePressureMax, tileTimeMin, tileTimeMax,
             haloPressureMin, haloPressureMax, haloTimeMin, haloTimeMax)
-
-
-# spddir_to_uwdvwd: Given a vector of wind speed and direction, return vectors of the u- and v-
-#                   components.
-# INPUTS:
-#    wspd: vector of wind speeds (float, probably m/s)
-#    wdir: vector of wind directions (float, deg)
-#
-# OUTPUTS:
-#    uwd: vector of wind u-components
-#    vwd: vector of wind v-components
-#
-# DEPENDENCIES
-#    numpy
-def spddir_to_uwdvwd(wspd, wdir):
-    degToRad = np.pi/180.
-    uwd = np.multiply(-wspd, np.sin(wdir*(degToRad)))
-    vwd = np.multiply(-wspd, np.cos(wdir*(degToRad)))
-    return uwd, vwd
-
-
-# generate_date: Given a year, month, and day, produce a datetime object
-#                with the corresponding date, setting the hour and minute to zero.
-#
-# INPUTS:
-#    year: year (int)
-#    month: month (int)
-#    day: day (int)
-#
-# OUTPUTS
-#    datetime object of (year, month, day, 0, 0)
-#
-# DEPENDENCIES:
-#
-#    datetime
-def generate_date(year, month, day):
-    return datetime.datetime(year, month, day, 0, 0)
-
-
-# add_time: Given a datetime and the hour and minute, adjust the datetimeby the chosen time.
-#
-# INPUTS:
-#    dt: datetime object
-#    hour: hour (int)
-#    minute: minute (int)
-#
-# OUTPUTS:
-#    dt, adjusted forward by chosen hour and minute values
-#
-# DEPENDENCIES:
-#    datetime 
-def add_time(dt, hour, minute):
-    return dt + datetime.timedelta(hours=int(hour)) + datetime.timedelta(minutes=int(minute))
-
-
-# define_delt: Given a datetime and epoch datetime, compute time-difference (datetime minus epoch)
-#
-# INPUTS:
-#    dt_epoch: datetime of epoch
-#    dt: datetime
-#
-# OUTPUTS:
-#    fractional hours between datetime and epoch (float)
-#
-# DEPENDENCIES:
-#    datetime
-def define_delt(dt_epoch, dt):
-    td = dt - dt_epoch
-    return (td.total_seconds())/3600.
 
 
 # define_clusters: given a geopandas dataframe with shapely POINT geometry in EPSG:4087 format,
@@ -368,27 +298,12 @@ if __name__ == "__main__":
     ob_pre=np.asarray(hdl.variables['pre']).squeeze()
     ob_lat=np.asarray(hdl.variables['lat']).squeeze()
     ob_lon=np.asarray(hdl.variables['lon']).squeeze()
-    ob_year=np.asarray(hdl.variables['year']).squeeze().astype('int')
-    ob_mon=np.asarray(hdl.variables['mon']).squeeze().astype('int')
-    ob_day=np.asarray(hdl.variables['day']).squeeze().astype('int')
-    ob_hour=np.asarray(hdl.variables['hour']).squeeze().astype('int')
-    ob_min=np.asarray(hdl.variables['minute']).squeeze().astype('int')
-    ob_spd=np.asarray(hdl.variables['wspd']).squeeze()
-    ob_dir=np.asarray(hdl.variables['wdir']).squeeze()
-    # computed and fixed fields:
-    # compute ob_uwd and ob_vwd from ob_spd, ob_dir
-    ob_uwd, ob_vwd = spddir_to_uwdvwd(ob_spd, ob_dir)
+    ob_tim=np.asarray(hdl.variables['tim']).squeeze()
+    ob_uwd=np.asarray(hdl.variables['uwd']).squeeze()
+    ob_vwd=np.asarray(hdl.variables['vwd']).squeeze()
     # fix longitudes to -180 to 180 format
     fix=np.where(ob_lon>180.)
     ob_lon[fix]=ob_lon[fix]-360.
-    # define analysis datetime
-    an_dt = datetime.datetime.strptime(userInputs.anaDateTime,'%Y%m%d%H')
-    # compute dates (year, month, day)
-    dates = list(map(generate_date, ob_year, ob_mon, ob_day))
-    # compute datetimes (year, month, day, hour, minute) from dates and ob_hour, ob_min
-    ob_dt = np.asarray(list(map(add_time, dates, ob_hour, ob_min)))
-    # compute fractional hours relative to analysis-time
-    ob_tim = np.asarray(list(map(define_delt, np.repeat(an_dt,np.size(ob_dt)), ob_dt))).squeeze()
     # create a vector to store clusterID values
     ob_cid = np.nan * np.ones(np.shape(ob_pre))
     # Pre-screening for pressure and time into discrete groups, then use DistanceBand grouping

@@ -1,7 +1,80 @@
 import numpy as np
 import process_satwnds_dependencies
 from netCDF4 import Dataset
+import datetime
 import argparse
+#
+# define internal functions
+#
+# spddir_to_uwdvwd: Given a vector of wind speed and direction, return vectors of the u- and v-
+#                   components.
+# INPUTS:
+#    wspd: vector of wind speeds (float, probably m/s)
+#    wdir: vector of wind directions (float, deg)
+#
+# OUTPUTS:
+#    uwd: vector of wind u-components
+#    vwd: vector of wind v-components
+#
+# DEPENDENCIES
+#    numpy
+def spddir_to_uwdvwd(wspd, wdir):
+    degToRad = np.pi/180.
+    uwd = np.multiply(-wspd, np.sin(wdir*(degToRad)))
+    vwd = np.multiply(-wspd, np.cos(wdir*(degToRad)))
+    return uwd, vwd
+
+
+# generate_date: Given a year, month, and day, produce a datetime object
+#                with the corresponding date, setting the hour and minute to zero.
+#
+# INPUTS:
+#    year: year (int)
+#    month: month (int)
+#    day: day (int)
+#
+# OUTPUTS
+#    datetime object of (year, month, day, 0, 0)
+#
+# DEPENDENCIES:
+#
+#    datetime
+def generate_date(year, month, day):
+    return datetime.datetime(year, month, day, 0, 0)
+
+
+# add_time: Given a datetime and the hour and minute, adjust the datetimeby the chosen time.
+#
+# INPUTS:
+#    dt: datetime object
+#    hour: hour (int)
+#    minute: minute (int)
+#
+# OUTPUTS:
+#    dt, adjusted forward by chosen hour and minute values
+#
+# DEPENDENCIES:
+#    datetime 
+def add_time(dt, hour, minute):
+    return dt + datetime.timedelta(hours=int(hour)) + datetime.timedelta(minutes=int(minute))
+
+
+# define_delt: Given a datetime and epoch datetime, compute time-difference (datetime minus epoch)
+#
+# INPUTS:
+#    dt_epoch: datetime of epoch
+#    dt: datetime
+#
+# OUTPUTS:
+#    fractional hours between datetime and epoch (float)
+#
+# DEPENDENCIES:
+#    datetime
+def define_delt(dt_epoch, dt):
+    td = dt - dt_epoch
+    return (td.total_seconds())/3600.
+
+
 #
 # begin
 #
@@ -9,6 +82,7 @@ if __name__ == "__main__":
     # define argparser for inputs
     parser = argparse.ArgumentParser(description='define full-path to data directory, name of ' +
                                                  'BUFR AMV file, and name of output netCDF file')
+    parser.add_argument('anaDateTime', metavar='DTIME', type=str, help='YYYYMMDDHH of analysis')
     parser.add_argument('dataDir', metavar='DATADIR', type=str, help='full path to data directory, ending in /')
     parser.add_argument('bufrFileName', metavar='BUFRFILE', type=str, help='name of input BUFR AMV file')
     parser.add_argument('netcdfFileName', metavar='INFILE', type=str, help='name of output netCDF AMV file')
@@ -29,23 +103,29 @@ if __name__ == "__main__":
                     'NC005069',
                     'NC005070',
                     'NC005071',
-                    'NC005072',  # NC005072 encounters floating-point exceptions in this test data file for some reason 
+                    'NC005072', 
                     'NC005080',
                     'NC005081',
-                    'NC005091']
+                    'NC005091'
+                   ]
     # initialize empty arrays
     obLat = np.asarray([])
     obLon = np.asarray([])
     obPre = np.asarray([])
     obSpd = np.asarray([])
     obDir = np.asarray([])
+    obUwd = np.asarray([])
+    obVwd = np.asarray([])
     obYr  = np.asarray([])
     obMon = np.asarray([])
     obDay = np.asarray([])
     obHr  = np.asarray([])
+    obTim = np.asarray([])
     obMin = np.asarray([])
     obTyp = np.asarray([])
     obPQC = np.asarray([])
+    # define analysis datetime
+    anDatetime = datetime.datetime.strptime(userInputs.anaDateTime, '%Y%m%d%H')
     for tankName in tankNameList:
         print('processing ' + tankName)
         outDict={
@@ -79,6 +159,17 @@ if __name__ == "__main__":
             obPQC = np.append(obPQC, amvDict['preQC'])
         except:
             print('warning: ' + tankName + ' was not processed due to errors')
+    # derive computed variable-types for all retrieved observations
+    # (1) obTim:
+    # (1a) compute dates (year, month, day)
+    obDates = list(map(generate_date, obYr.astype('int'), obMon.astype('int'), obDay.astype('int')))
+    # (1b) compute datetimes (year, month, day, hour, minute) from dates and obHour, obMin
+    obDatetimes = np.asarray(list(map(add_time, obDates, obHr.astype('int'), obMin.astype('int'))))
+    # (1c) compute fractional hours relative to analysis-time, as obTim
+    obTim = np.asarray(list(map(define_delt, np.repeat(anDatetime, np.size(obDatetimes)), obDatetimes))).squeeze()
+    # (2) obUwd and obVwd:
+    # (2a) compute obUwd and obVwd from obSpd, obDir
+    obUwd, obVwd = spddir_to_uwdvwd(obSpd, obDir.astype('float'))
     # report ob-types and pre-QC
     for t in np.unique(obTyp):
         i = np.where(obTyp==t)
@@ -123,6 +214,16 @@ if __name__ == "__main__":
                                   'f8'        ,
                                   ('ob')
                                 )
+    uwd = nc_out.createVariable(
+                                  'uwd'       ,
+                                  'f8'         ,
+                                  ('ob')
+                                 )
+    vwd = nc_out.createVariable(
+                                  'vwd'       ,
+                                  'f8'         ,
+                                  ('ob')
+                                 )
     wdir = nc_out.createVariable(
                                   'wdir'       ,
                                   'f8'        ,
@@ -130,37 +231,42 @@ if __name__ == "__main__":
                                 )
     year = nc_out.createVariable(
                                   'year'       ,
-                                  'f8'        ,
+                                  'i8'        ,
                                   ('ob')
                                 )
     mon = nc_out.createVariable(
                                   'mon'       ,
-                                  'f8'        ,
+                                  'i8'        ,
                                   ('ob')
                                 )
     day = nc_out.createVariable(
                                   'day'       ,
-                                  'f8'        ,
+                                  'i8'        ,
                                   ('ob')
                                 )
     hour = nc_out.createVariable(
                                   'hour'       ,
-                                  'f8'        ,
+                                  'i8'        ,
                                   ('ob')
                                 )
     minute = nc_out.createVariable(
                                    'minute'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
+    tim = nc_out.createVariable(
+                                  'tim'      ,
                                   'f8'        ,
                                   ('ob')
                                 )
     typ = nc_out.createVariable(
                                   'typ'       ,
-                                  'f8'        ,
+                                  'i8'        ,
                                   ('ob')
                                 )
     pqc = nc_out.createVariable(
                                   'pqc'       ,
-                                  'f8'        ,
+                                  'i8'        ,
                                   ('ob')
                                 )
     # Fill netCDF file variables
@@ -168,14 +274,17 @@ if __name__ == "__main__":
     lon[:]      = obLon
     pre[:]      = obPre
     wspd[:]     = obSpd
-    wdir[:]     = obDir
-    year[:]     = obYr
-    mon[:]      = obMon
-    day[:]      = obDay
-    hour[:]     = obHr
-    minute[:]   = obMin
-    typ[:]      = obTyp
-    pqc[:]      = obPQC
+    wdir[:]     = obDir.astype('float')
+    uwd[:]      = obUwd
+    vwd[:]      = obVwd
+    year[:]     = obYr.astype('int')
+    mon[:]      = obMon.astype('int')
+    day[:]      = obDay.astype('int')
+    hour[:]     = obHr.astype('int')
+    minute[:]   = obMin.astype('int')
+    tim[:]      = obTim
+    typ[:]      = obTyp.astype('int')
+    pqc[:]      = obPQC.astype('int')
     # Close netCDF file
     nc_out.close()
 #
