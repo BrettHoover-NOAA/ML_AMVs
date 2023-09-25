@@ -18,14 +18,11 @@ conda env list
 #
 # Execution
 #
-anaDateTime=${1}
-anaHH=${2}
-dataDir="/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering"
+runDir="${1}"
+anaDateTime=${2}
+anaHH=${3}
 outputNetcdfFileName="gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}_reconciled.nc"
 searchStr="gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}_Tile_"
 
-python reconcile_tiles.py ${dataDir} ${searchStr} ${outputNetcdfFileName}
+python reconcile_tiles.py ${runDir} ${searchStr} ${outputNetcdfFileName}
 
-# after execution, all files under dataDir/searchStr* can be removed
-echo "Removing Tile *.nc files..."
-rm -f ${dataDir}/${searchStr}*.nc

@@ -23,12 +23,12 @@ conda env list
 #
 # Execution
 #
-anaDateTime=${1}
-anaHH=${2}
-dataDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering
+runDir=${1}
+anaDateTime=${2}
+anaHH=${3}
 bufrFileName=gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}
 netcdfFileName=${bufrFileName}.nc
 
 
-python process_AMVs_from_BUFR.py ${anaDateTime} ${dataDir} ${bufrFileName} ${netcdfFileName}
+python process_AMVs_from_BUFR.py ${anaDateTime} ${runDir} ${bufrFileName} ${netcdfFileName}
 

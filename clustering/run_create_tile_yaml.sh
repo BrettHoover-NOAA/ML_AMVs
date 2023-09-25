@@ -18,17 +18,17 @@ conda env list
 #
 # Execution
 #
-anaDateTime=${1}
-anaHH=${2}
-nPreBins=${3}
-minTilePre=${4}
-maxTilePre=${5}
-haloPre=${6}
-nTimBins=${7}
-minTileTim=${8}
-maxTileTim=${9}
-haloTim=${10}
-optBins=${11}
-dataDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering
+runDir=${1}
+anaDateTime=${2}
+anaHH=${3}
+nPreBins=${4}
+minTilePre=${5}
+maxTilePre=${6}
+haloPre=${7}
+nTimBins=${8}
+minTileTim=${9}
+maxTileTim=${10}
+haloTim=${11}
+optBins=${12}
 netcdfFileName=gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}.nc
-python create_tile_yaml.py ${dataDir} ${netcdfFileName} ${nPreBins} ${minTilePre} ${maxTilePre} ${haloPre} ${nTimBins} ${minTileTim} ${maxTileTim} ${haloTim} ${optBins} > tiles.yaml
+python create_tile_yaml.py ${runDir} ${netcdfFileName} ${nPreBins} ${minTilePre} ${maxTilePre} ${haloPre} ${nTimBins} ${minTileTim} ${maxTileTim} ${haloTim} ${optBins} > tiles.yaml
