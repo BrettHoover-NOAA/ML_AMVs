@@ -286,6 +286,11 @@ if __name__ == "__main__":
     parser.add_argument('netcdfFileName', metavar='INFILE', type=str, help='netCDF AMV file')
     parser.add_argument('yamlFile', metavar='YAML', type=str, help='YAML file defining tiles')
     parser.add_argument('tileName', metavar='TILE', type=str, help='name of tile in YAML file to process')
+    parser.add_argument('threshDist', metavar='DTHRESH', type=float, help='max allowable difference in distance for clustering (km)')
+    parser.add_argument('threshPres', metavar='PTHRESH', type=float, help='max allowable difference in pressure for clustering (Pa)')
+    parser.add_argument('threshTime', metavar='TTHRESH', type=float, help='max allowable difference in time for clustering (frac. hrs)')
+    parser.add_argument('threshUwnd', metavar='UTHRESH', type=float, help='max allowable difference in u-wind for clustering (m/s)')
+    parser.add_argument('threshVwnd', metavar='VTHRESH', type=float, help='max allowable difference in v-wind for clustering (m/s)')
     # parse arguments
     userInputs = parser.parse_args()
     # quality-control inputs: if userInputs.dataDir does not end in '/', append it
@@ -316,11 +321,11 @@ if __name__ == "__main__":
     # try excluding type=240 (SWIR) and type=251 (VIS) which are not assimilated in GSI
     allidx=np.where((ob_pqc==1.)&(ob_typ>=240)&(ob_typ<=260))[0]#&(np.isin(ob_typ,[240,251])==False))[0]
     # define index of all searching observations (meeting pressure and time requirements in subset)
-    thresDist = 100. * 1000.  # range of distance for clustering
-    thresPres = 5000. # +/- range of pressure bin
-    thresTime = 0.5  # +/- range of time bin
-    thresUwnd = 5.0  # +/- range of u-wind differences for clustering
-    thresVwnd = 5.0  # +/- range of v-wind differences for clustering
+    thresDist = userInputs.threshDist * 1000.  # range of distance for clustering (m)
+    thresPres = userInputs.threshPres          # +/- range of pressure for clustering (Pa)
+    thresTime = userInputs.threshTime          # +/- range of time for clustering (frac. hrs)
+    thresUwnd = userInputs.threshUwnd          # +/- range of u-wind differences for clustering (m/s)
+    thresVwnd = userInputs.threshVwnd          # +/- range of v-wind differences for clustering (m/s)
     # extract tile and halo data from yamlFile
     (tileValue, tilePresMin, tilePresMax, tileTimeMin, tileTimeMax,
      haloPresMin, haloPresMax, haloTimeMin, haloTimeMax) = parse_yaml(userInputs.yamlFile,

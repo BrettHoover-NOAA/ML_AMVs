@@ -4,6 +4,12 @@ YYYY=>>YYYY<<
 MM=>>MM<<
 DD=>>DD<<
 HH=>>HH<<
+# clustering settings
+threshDist=>>THRESHDIST<<
+threshPres=>>THRESHPRES<<
+threshTime=>>THRESHTIME<<
+threshUwnd=>>THRESHUWND<<
+threshVwnd=>>THRESHVWND<<
 # tile settings
 nPreBins=>>NPREBINS<<
 minTilePre=>>MINTILEPRE<<
@@ -45,7 +51,7 @@ do
 #   3b. compute cluster-ID (cid) and tile-ID (tid) for each observation in tile+halo
 #   3c. write tile+halo to netCDF file
     jName_cluster_tiles=cluster_tiles.${anaDateTime}
-    jid_cluster_tiles=$(sbatch --parsable -A da-cpu -N 1 -t 0:30:00 --dependency=afterany:${jid_generate_tiles} --job-name=${jName_cluster_tiles} run_cluster.sh ${runDir} ${anaDateTime} ${HH} Tile_${num})
+    jid_cluster_tiles=$(sbatch --parsable -A da-cpu -N 1 -t 0:30:00 --dependency=afterany:${jid_generate_tiles} --job-name=${jName_cluster_tiles} run_cluster.sh ${runDir} ${anaDateTime} ${HH} Tile_${num} ${threshDist} ${threshPres} ${threshTime} ${threshUwnd} ${threshVwnd})
     echo "    clustering Tile_${num} on jid ${jid_cluster_tiles}" >> "${logFile}" 2>&1
 done
 # 4) reconcile tiles

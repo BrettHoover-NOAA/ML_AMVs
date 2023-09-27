@@ -6,15 +6,21 @@ DD=04
 HH=18
 # define analysis datetime
 anaDateTime=${YYYY}${MM}${DD}${HH}
+# clustering settings
+threshDist=100.0
+threshPres=5000.0
+threshTime=0.5
+threshUwnd=5.0
+threshVwnd=5.0
 # tile settings
 nPreBins=6
 minTilePre=10000.0
 maxTilePre=110000.0
-haloPre=5000.0
+haloPre=${threshPres}  # pressure halo is set to threshPres
 nTimBins=5
 minTileTim=-3.0
 maxTileTim=3.0
-haloTim=0.5
+haloTim=${threshTime}  # time halo is set to threshTime
 optBins=True
 # directory settings
 repoDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering
@@ -180,6 +186,11 @@ sed -i "s/>>YYYY<</${YYYY}/g" ${runDir}/sub_cluster.sh
 sed -i "s/>>MM<</${MM}/g" ${runDir}/sub_cluster.sh
 sed -i "s/>>DD<</${DD}/g" ${runDir}/sub_cluster.sh
 sed -i "s/>>HH<</${HH}/g" ${runDir}/sub_cluster.sh
+sed -i "s/>>THRESHDIST<</${threshDist}/g" ${runDir}/sub_cluster.sh
+sed -i "s/>>THRESHPRES<</${threshPres}/g" ${runDir}/sub_cluster.sh
+sed -i "s/>>THRESHTIME<</${threshTime}/g" ${runDir}/sub_cluster.sh
+sed -i "s/>>THRESHUWND<</${threshUwnd}/g" ${runDir}/sub_cluster.sh
+sed -i "s/>>THRESHVWND<</${threshVwnd}/g" ${runDir}/sub_cluster.sh
 sed -i "s/>>NPREBINS<</${nPreBins}/g" ${runDir}/sub_cluster.sh
 sed -i "s/>>MINTILEPRE<</${minTilePre}/g" ${runDir}/sub_cluster.sh
 sed -i "s/>>MAXTILEPRE<</${maxTilePre}/g" ${runDir}/sub_cluster.sh

@@ -22,9 +22,14 @@ runDir=${1}
 anaDateTime=${2}
 anaHH=${3}
 tileName=${4}
+threshDist=${5}
+threshPres=${6}
+threshTime=${7}
+threshUwnd=${8}
+threshVwnd=${9}
 
 netcdfFileName=gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}.nc
 yamlFile=tiles.yaml
 
-python assign_AMV_clusters.py ${anaDateTime} ${runDir} ${netcdfFileName} ${yamlFile} ${tileName}
+python assign_AMV_clusters.py ${anaDateTime} ${runDir} ${netcdfFileName} ${yamlFile} ${tileName} ${threshDist} ${threshPres} ${threshTime} ${threshUwnd} ${threshVwnd}
 
