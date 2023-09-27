@@ -26,3 +26,5 @@ searchStr="gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}_Tile_"
 
 python reconcile_tiles.py ${runDir} ${searchStr} ${outputNetcdfFileName}
 
+# after completion of python program, run cleanup_rundir.sh to tidy workspace
+./cleanup_rundir.sh ${runDir} ${anaDateTime} ${anaHH}
