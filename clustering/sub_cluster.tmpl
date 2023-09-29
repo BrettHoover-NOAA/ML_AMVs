@@ -20,6 +20,7 @@ minTileTim=>>MINTILETIM<<
 maxTileTim=>>MAXTILETIM<<
 haloTim=>>HALOTIM<<
 optBins=>>OPTBINS<<
+memPerTile=>>MEMPERTILE<<
 
 runDir=`pwd`
 anaDateTime=${YYYY}${MM}${DD}${HH}
@@ -44,15 +45,24 @@ echo "defining tiles on jid ${jid_generate_tiles}" >> "${logFile}" 2>&1
 # 3) cluster on tiles
 echo "clustering on tiles ..." >> "${logFile}" 2>&1
 #   3a. loop through all Tile_xxx tile-names
-for num in 001 002 003 004 005 006 007 008 009 010\
-           011 012 013 014 015 016 017 018 019 020\
-           021 022 023 024 025 026 027 028 029 030
+nTiles=$((${nPreBins} * ${nTimBins}))
+n=0
+while [ ${n} -lt ${nTiles} ]
 do
+    n=$((${n} + 1))
+    if [ ${n} -lt 10 ]; then
+        tileName=Tile_00${n}
+    elif [ ${n} -lt 100 ]; then
+        tileName=Tile_0${n}
+    else
+        tileName=Tile_${n}
+    fi
 #   3b. compute cluster-ID (cid) and tile-ID (tid) for each observation in tile+halo
 #   3c. write tile+halo to netCDF file
+#   NOTE: memory allocated to single CPU is default 2300M (2.3g), but memPerTile will override   
     jName_cluster_tiles=cluster_tiles.${anaDateTime}
-    jid_cluster_tiles=$(sbatch --parsable -A da-cpu -N 1 -t 0:30:00 --dependency=afterany:${jid_generate_tiles} --job-name=${jName_cluster_tiles} run_cluster.sh ${runDir} ${anaDateTime} ${HH} Tile_${num} ${threshDist} ${threshPres} ${threshTime} ${threshUwnd} ${threshVwnd})
-    echo "    clustering Tile_${num} on jid ${jid_cluster_tiles}" >> "${logFile}" 2>&1
+    jid_cluster_tiles=$(sbatch --parsable -A da-cpu -N 1 --ntasks=1 --cpus-per-task=1 --mem-per-cpu=${memPerTile} -t 0:30:00 --dependency=afterany:${jid_generate_tiles} --job-name=${jName_cluster_tiles} run_cluster.sh ${runDir} ${anaDateTime} ${HH} ${tileName} ${threshDist} ${threshPres} ${threshTime} ${threshUwnd} ${threshVwnd})
+    echo "    clustering ${tileName} on jid ${jid_cluster_tiles}" >> "${logFile}" 2>&1
 done
 # 4) reconcile tiles
 echo "reconciling tiles" >> "${logFile}" 2>&1
@@ -63,6 +73,4 @@ echo "reconciling tiles" >> "${logFile}" 2>&1
 jName_combine_clusters=${jName_cluster_tiles}  # this is identical to job-name for clustering tiles for use of singleton dependency
 jid_combine_clusters=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=singleton --job-name=${jName_combine_clusters} run_combine_clusters.sh ${runDir} ${anaDateTime} ${HH})
 echo "reconciling tiles on jid ${jid_combine_clusters}" >> "${logFile}" 2>&1
-# 5) cleanup
-#echo "cleaning up on head node" >> "${logFile}" 2>&1
-#./cleanup_rundir.sh ${runDir} ${anaDateTime} ${anaHH} >> "${logFile}" 2>&1
+
