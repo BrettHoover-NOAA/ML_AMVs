@@ -3,6 +3,7 @@ clustering/*.nc
 clustering/*.gz
 clustering/*.png
 clustering/*bufr_d*
+clustering/testing/
 # general tidiness
 clustering/__pycache__/
 clustering/*.so
