@@ -21,10 +21,14 @@ conda env list
 runDir="${1}"
 anaDateTime=${2}
 anaHH=${3}
+numTiles=${4}
 outputNetcdfFileName="gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}_reconciled.nc"
 searchStr="gdas.t${anaHH}z.satwnd.tm00.bufr_d_${anaDateTime}_Tile_"
 
-python reconcile_tiles.py ${runDir} ${searchStr} ${outputNetcdfFileName}
+python reconcile_tiles.py ${runDir} ${searchStr} ${outputNetcdfFileName} ${numTiles}
 
 # after completion of python program, run cleanup_rundir.sh to tidy workspace
-./cleanup_rundir.sh ${runDir} ${anaDateTime} ${anaHH}
+# IF outputNetcdfFileName was produced
+if [ -e "${outputNetcdfFileName}" ]; then
+    ./cleanup_rundir.sh ${runDir} ${anaDateTime} ${anaHH}
+fi

@@ -107,15 +107,21 @@ if __name__ == "__main__":
     parser.add_argument('dataDir', metavar='DATADIR', type=str, help='full-path to data directory (ends in /)')
     parser.add_argument('searchString', metavar='SRCHSTR', type=str, help='search string up to but not including wildcard for locating tiles')
     parser.add_argument('outputNetcdfFileName', metavar='OUTFILE', type=str, help='name of output netCDF file')
+    parser.add_argument('numTiles', metavar='NUMTILES', type=int, help='number of tiles that should be processed')
     userInputs = parser.parse_args()
     #userInputs = parser.parse_args(['/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering',
-    #                                'gdas.t00z.satwnd.tm00.bufr_d_2023040300_Tile_*.nc',
-    #                                'gdas.t00z.satwnd.tm00.bufr_d_2023040300_reconciled.nc'])
+    #                                'gdas.t00z.satwnd.tm00.bufr_d_2023040300_Tile_',
+    #                                'gdas.t00z.satwnd.tm00.bufr_d_2023040300_reconciled.nc',
+    #                                30])
     # quality-control inputs: if userInputs.dataDir does not end in '/', append it
     dataDir = userInputs.dataDir + '/' if userInputs.dataDir[-1] != '/' else userInputs.dataDir
     # find list of tile files to process
     tileList = glob(dataDir + userInputs.searchString + '*' + '.nc')
     tileList.sort()
+    # check if tileList is the correct length, if tiles are missing report and exit
+    if len(tileList) != userInputs.numTiles:
+        print('ERROR: NUMBER OF TILE FILES {:d} DOES NOT MATCH EXPECTED NUMBER OF TILES {:d}, ABORTING'.format(len(tileList), userInputs.numTiles))
+        raise SystemExit('num-tile mismatch error')
     print('processing {:d} tiles'.format(len(tileList)))
     # initialize empty arrays to store data across all tiles
     amvLat=np.asarray([])  # latitude (deg)
