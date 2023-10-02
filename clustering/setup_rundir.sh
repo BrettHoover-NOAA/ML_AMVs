@@ -22,7 +22,7 @@ minTileTim=-3.1        # pad minimum time to avoid errors when computing optimal
 maxTileTim=3.1         # pad maximum time to avoid errors when computing optimal tiles
 haloTim=${threshTime}  # time halo is set to threshTime
 optBins=True
-memPerTile=8g          # default setting: 2300M
+memPerTile=4g          # default setting: 2300M
 # directory settings
 repoDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering
 cpythonExec=/scratch1/NCEPDEV/da/Brett.Hoover/SATWNDBUFR/python_bufr/ioda-bundle/build/lib64/python3.6/pyiodaconv/bufr.cpython-36m-x86_64-linux-gnu.so
