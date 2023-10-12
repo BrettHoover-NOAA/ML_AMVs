@@ -11,6 +11,7 @@ import cartopy.crs as ccrs
 # General Purpose Functions
 #   can_float                Returns True if input can be converted to a float, otherwise returns False
 #   spddir_to_uwdvwd         Converts (spd,dir) to (u,v)
+#   uwdvwd_to_spddir         Converts (u,v) to (spd,dir)
 #   truncate_colorbar        Returns colorbar only covering subspace within [0. 1.] of input colorbar
 #
 def can_float(element: any) -> bool:
@@ -26,6 +27,11 @@ def spddir_to_uwdvwd(spd,ang):
     uwd=-spd*np.sin(ang*(np.pi/180.))
     vwd=-spd*np.cos(ang*(np.pi/180.))
     return uwd, vwd
+
+def uwdvwd_to_spddir(uwd,vwd):
+    spd=np.sqrt(uwd**2.+vwd**2.)
+    ang=(270.-np.arctan2(vwd,uwd)*(180./np.pi))%(360.)
+    return spd, ang
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     import numpy as np

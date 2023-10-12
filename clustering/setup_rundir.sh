@@ -170,13 +170,29 @@ else
         echo "ERROR source file:${srcFile} does not exist, exiting"
         exit 2015
     fi
+    # run_compute_superobs.sh: performs averaging/rescaling/metadata-production from clustered AMVs, outputs to netCDF
+    srcFile=${repoDir}/run_compute_superobs.sh
+    if [ -e "${srcFile}" ]; then
+        cp "${srcFile}" ${runDir}/.
+    else
+        echo "ERROR source file:${srcFile} does not exist, exiting"
+        exit 2016
+    fi
+    # compute_superobs.py: performs computational tasks of run_compute_superobs.sh
+    srcFile=${repoDir}/compute_superobs.py
+    if [ -e "${srcFile}" ]; then
+        cp "${srcFile}" ${runDir}/.
+    else
+        echo "ERROR source file:${srcFile} does not exist, exiting"
+        exit 2017
+    fi
     # cleanup_rundir.sh: removes intermediate files and collects log files at end of run_combine_clusters.sh
     srcFile=${repoDir}/cleanup_rundir.sh
     if [ -e "${srcFile}" ]; then
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2016
+        exit 2018
     fi
 fi
 # Generate sub_cluster.sh from sub_cluster.tmpl

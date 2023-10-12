@@ -73,4 +73,7 @@ echo "reconciling tiles" >> "${logFile}" 2>&1
 jName_combine_clusters=${jName_cluster_tiles}  # this is identical to job-name for clustering tiles for use of singleton dependency
 jid_combine_clusters=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=singleton --job-name=${jName_combine_clusters} run_combine_clusters.sh ${runDir} ${anaDateTime} ${HH} ${nTiles})
 echo "reconciling tiles on jid ${jid_combine_clusters}" >> "${logFile}" 2>&1
-
+# 5) compute superobs
+echo "computing superobs" >> "${logFile}" 2>&1
+jName_compute_superobs=compute_superobs.${anaDateTime}
+jid_compute_superobs=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=afterany:${jid_combine_clusters} --job-name=${jName_compute_superobs} run_compute_superobs.sh ${runDir} ${anaDateTime} ${HH})
