@@ -10,12 +10,16 @@ import argparse
 #                                     that produce the requested number of bins between the min/max values
 #                                     that contain roughly an equal number of observations per-bin.
 #
+#                                     Updated to include the halo-size as well for a more accurate approach
+#                                     to producing an even distribution of observations on each tile+halo.
+#
 # INPUTS:
 #    obVals: the observed values in the dimension to be tiled across
 #    nBins: the number of bins to produce
 #    minVal: the minimum value of the variable to tile across
 #    maxVal: the maximum value of the variable to tile across
 #    stepSize: the (very small) step-size used to search for optimal bin edges
+#    halo: the size of the halo extending from each bin-edge
 #
 # OUTPUTS:
 #    equBinEdges: bin-edges spaced to optimize equal ob-density between bins
@@ -23,16 +27,16 @@ import argparse
 # DEPENDENCIES
 #    numpy
 #    scipy.interpolate.interp1d
-def compute_equal_ob_density_bin_edges(obVals, nBins, minVal, maxVal, stepSize):
+def compute_equal_ob_density_bin_edges(obVals, nBins, minVal, maxVal, stepSize, halo):
     # define bin-edges for incredibly small bins of size stepSize across total tiled space
     delVal = maxVal - minVal
     miniBinEdges = np.linspace(minVal, maxVal, int(np.round(delVal/stepSize)))
-    # compute number of obs per mini-bin
+    # compute number of obs per mini-bin, within bounds of bin+halo
     numObsPerMiniBin = np.nan * np.ones((np.size(miniBinEdges)-1,))
     for i in range(np.size(numObsPerMiniBin)):
         vMin = miniBinEdges[i]
         vMax = miniBinEdges[i+1]
-        j = np.where((obVals >= vMin) & (obVals < vMax))
+        j = np.where((obVals >= vMin - halo) & (obVals < vMax + halo))
         numObsPerMiniBin[i] = np.size(j)
     # define cumulative percentage of total ob-count across mini-bins
     cumuP = np.cumsum(numObsPerMiniBin) / np.sum(numObsPerMiniBin)
@@ -118,8 +122,8 @@ if __name__ == "__main__":
        (userInputs.optBins == '.True.') | (userInputs.optBins == '.true.') | (userInputs.optBins == '.TRUE.'):
         # search for optimal bin-edges in pressure-dimension by 100 Pa (1 hPa) steps and in time-dimension
         # by 0.0166667 fractional hourly (~ 1 minute) steps
-        preBinEdges = compute_equal_ob_density_bin_edges(obPre, userInputs.nPreBins, userInputs.preMin, userInputs.preMax, 100.)
-        timBinEdges = compute_equal_ob_density_bin_edges(obTim, userInputs.nTimBins, userInputs.timMin, userInputs.timMax, 0.0166667)
+        preBinEdges = compute_equal_ob_density_bin_edges(obPre, userInputs.nPreBins, userInputs.preMin, userInputs.preMax, 100., userInputs.preHalo)
+        timBinEdges = compute_equal_ob_density_bin_edges(obTim, userInputs.nTimBins, userInputs.timMin, userInputs.timMax, 0.0166667, userInputs.timHalo)
     else:
         preBinEdges = np.linspace(start=userInputs.preMin, stop=userInputs.preMax, num=userInputs.nPreBins + 1)
         timBinEdges = np.linspace(start=userInputs.timMin, stop=userInputs.timMax, num=userInputs.nTimBins + 1)
