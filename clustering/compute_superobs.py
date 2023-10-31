@@ -263,22 +263,22 @@ if __name__ == "__main__":
                                   ('ob')
                                 )
     vvr = ncOut.createVariable(   'vvr'       ,
-                                  'i8'        ,
+                                  'f8'        ,
                                   ('ob')
                               )
     pvr = ncOut.createVariable(
                                   'pvr'       ,
-                                  'i8'        ,
+                                  'f8'        ,
                                   ('ob')
                                 )
     tvr = ncOut.createVariable(
                                   'tvr'       ,
-                                  'i8'        ,
+                                  'f8'        ,
                                   ('ob')
                                 )
     dvr = ncOut.createVariable(
                                   'dvr'       ,
-                                  'i8'        ,
+                                  'f8'        ,
                                   ('ob')
                                 )
     # fill netCDF output file
