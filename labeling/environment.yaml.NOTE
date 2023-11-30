@@ -1,0 +1,30 @@
+NOTE: This is not directly achievable through a `conda env create --file environment.yaml` command, because of picky
+      dependencies with xESMF. To produce the environment below, use the following steps:
+      
+      conda env -n ML-labeling
+      conda activate ML-labeling
+      conda install -c conda-forge xesmf
+      conda deactivate
+      conda activate ML-labeling
+      conda install -c conda-forge netCDF4 cfgrib jupyter matplotlib cartopy pandas geopandas metpy
+      pip install cdsapi
+
+name: ML-labeling
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - numpy
+  - matplotlib
+  - netcdf4
+  - cartopy
+  - jupyter
+  - xarray
+  - cfgrib
+  - pandas
+  - geopandas
+  - metpy
+  - xesmf
+  - pip
+  - pip:
+    - cdsapi
