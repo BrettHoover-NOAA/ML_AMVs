@@ -9,7 +9,7 @@ NOTE: This is not directly achievable through a `conda env create --file environ
       conda install -c conda-forge netCDF4 cfgrib jupyter matplotlib cartopy pandas geopandas metpy
       pip install cdsapi
 
-name: ML-labeling
+name: ML-labeling-w-xesmf
 channels:
   - conda-forge
 dependencies:
