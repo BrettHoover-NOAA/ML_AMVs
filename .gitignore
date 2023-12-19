@@ -4,6 +4,7 @@ clustering/*.gz
 clustering/*.png
 clustering/*bufr_d*
 clustering/testing/
+labeling/testing/
 # general tidiness
 clustering/__pycache__/
 clustering/*.so
