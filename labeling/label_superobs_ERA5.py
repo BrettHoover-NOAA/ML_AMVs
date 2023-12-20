@@ -1,8 +1,7 @@
 # ML-labeling compliant
-import numpy as np
-import matplotlib.pyplot as plt
-import xarray as xr
 from netCDF4 import Dataset
+import xarray as xr
+import numpy as np
 from scipy.interpolate import interpn
 from os.path import isfile
 import argparse
