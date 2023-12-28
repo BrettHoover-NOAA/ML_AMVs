@@ -19,6 +19,21 @@ def uwdvwd_to_spddir(uwd,vwd):
 #
 # define internal functions
 #
+# array_int_to_str: given an array of integers, return a concatenated string of the integer values
+#
+# INPUTS:
+#   a: array of input integeger values (int array)
+#
+# OUTPUTS:
+#   integer-values concatenated together into a string with no delimiters (str)
+#
+# DEPENDENCIES:
+#   none 
+def array_int_to_str(a):
+    return ''.join(map(str, a))
+
+
+#
 # define_superobs: compute super-observations and super-ob metadata from observations with assigned clusters
 #
 # INPUTS:
@@ -30,6 +45,7 @@ def uwdvwd_to_spddir(uwd,vwd):
 #   vwd: vector of ob v-wind component (float, m/s)
 #   typ: vector of ob type (integer, categorical)
 #   cid: vector of ob cluster-ID (integer, categorical)
+#   allTypes: vector of all possible ob-types among obs (integer, categorical)
 #
 # OUTPUTS:
 #   SOlat: vector of super-ob latitude (float, deg)
@@ -45,14 +61,21 @@ def uwdvwd_to_spddir(uwd,vwd):
 #   SOpvr: vector of super-ob variance of member pressures (float, Pa**2)
 #   SOtvr: vector of super-ob variance of member times (float, (frc. hrs)**2)
 #   SOdvr: vector of super-ob variance in [x,y]-space, as variance in distance from epoch point (float, (m)**2.)
+#   SOtyp: vector of (typeValue,)-dimension vectors identifying the presence (=1) or absence (=0) of each ob-type
+#          present in file
 #
 # DEPENDENCIES:
 #   numpy
 #   pyproj
-def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid):
+def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid, allTypes):
     # create an internal function to count then number of unique typ values for an array of vectors
     def num_types(a):
         return np.size(np.unique(a))
+    # create an internal function to track the presence or absence of each unique typ value in SO
+    def track_types(a):
+        numTypes = np.size(allTypes)
+        typTracker = np.zeros((numTypes),)
+        return np.isin(allTypes, a).astype('int32')
     # create a pyproj.Transformer() object to convert between EPSG:4087 (x,y)-space and EPSG:4326 (lon,lat)-space
     proj_xy_to_ll = pyproj.Transformer.from_crs(4087, 4326, always_xy=True)
     proj_ll_to_xy = pyproj.Transformer.from_crs(4326, 4087, always_xy=True)
@@ -65,6 +88,8 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid):
     CIDdict={}
     for i in range(np.size(uniqueCIDs)):
         CIDdict[uniqueCIDs[i]]=i
+    # define size of vector of all ob-types
+    numTypes = np.size(allTypes)
     # define superOb (meta)data arrays
     SOlat = np.nan*np.ones((nCIDs,))  # latitude (float, deg)
     SOlon = np.nan*np.ones((nCIDs,))  # longitude (float, deg)
@@ -79,6 +104,7 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid):
     SOpvr = np.nan*np.ones((nCIDs,))  # pressure variance among members (float, Pa^2)
     SOtvr = np.nan*np.ones((nCIDs,))  # time variance among members (float, frac. hrs.^2)
     SOdvr = np.nan*np.ones((nCIDs,))  # [x,y]-space variance among members as distance from epoch point (float, m^2)
+    SOtyp = np.nan*np.ones((nCIDs, numTypes)) # each ob-type in allTypes: present (=1) or absent (=0) from super-ob (integer)
     # start with the singleton (1-member) "clusters", and assign directly to the superOb arrays
     n = 1
     c = uniqueCIDs[np.where(cidCounts==n)[0]]  # all CIDs with cidCounts==n
@@ -100,6 +126,9 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid):
         SOpvr[i] = 0.
         SOtvr[i] = 0.
         SOdvr[i] = 0.
+        # track_types can be applied to each singleton cluster by reshaping to (-1,1) and
+        # applying function to each element along axis=1
+        SOtyp[i, :] = np.apply_along_axis(func1d=track_types, axis=1, arr=typ[x].reshape(-1,1))
     # loop through the rest of the potential values of n from 2 to max(cidCounts)
     for n in np.arange(start=2, stop=max(cidCounts)+1, step=1):
         c = uniqueCIDs[np.where(cidCounts==n)[0]]  # all CIDs with cidCounts==n
@@ -163,8 +192,10 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid):
             SOpvr[i] = np.var(pre[SOIdx], axis=1)
             SOtvr[i] = np.var(tim[SOIdx], axis=1)
             SOdvr[i] = np.var(distXYs, axis=1)
+            # 6. SOtyp is computed by applying track_types along the 1-axis of typ[SOIdx]
+            SOtyp[i,:] = np.apply_along_axis(func1d=track_types, axis=1, arr=typ[SOIdx])
     # return SO vectors
-    return (SOlat, SOlon, SOpre, SOtim, SOuwd, SOvwd, SOnob, SOnty, SOuvr, SOvvr, SOpvr, SOtvr, SOdvr)
+    return (SOlat, SOlon, SOpre, SOtim, SOuwd, SOvwd, SOnob, SOnty, SOuvr, SOvvr, SOpvr, SOtvr, SOdvr, SOtyp)
 #
 # begin
 #
@@ -189,8 +220,10 @@ if __name__ == "__main__":
     amvVwd = np.asarray(hdl.variables['vwd']).squeeze()  # AMV v-wind component (float, m/s)
     amvTyp = np.asarray(hdl.variables['typ']).squeeze()  # AMV type (integer, categorical)
     amvCID = np.asarray(hdl.variables['cid']).squeeze()  # AMV cluster-ID (integer, categorical)
+    # define list of all unique observation-types among AMVs in dataset
+    allTypes = np.unique(amvTyp.astype('int32'))
     # compute superobs and metadata
-    superobData = define_superobs(amvLat, amvLon, amvPre, amvTim, amvUwd, amvVwd, amvTyp, amvCID)
+    superobData = define_superobs(amvLat, amvLon, amvPre, amvTim, amvUwd, amvVwd, amvTyp, amvCID, allTypes)
     supLat = superobData[0]   # superob latitude (float, deg)
     supLon = superobData[1]   # superob longitude (float, deg)
     supPre = superobData[2]   # superob pressure (float, Pa)
@@ -204,6 +237,7 @@ if __name__ == "__main__":
     supPvr = superobData[10]  # superob metadata: variance in pressure among AMVs in cluster (float, (Pa)**2.)
     supTvr = superobData[11]  # superob metadata: variance in time among AMVs in cluster (float, (frc. hrs)**2.)
     supDvr = superobData[12]  # superob metadata: variance in [x,y]-space among AMVs in cluster, as distance from epoch point (float, (m)**2.)
+    supTyp = superobData[13]  # superob metadata: among types in allTypes, present (=1) or absent (=0) in superob (integer)
     # write superob data to output netCDF file
     ncOutFileName = dataDir + userInputs.outputNetcdfFile
     ncOut = Dataset( 
@@ -216,6 +250,10 @@ if __name__ == "__main__":
                                  'ob' , # nc_out.createDimension input: Dimension name 
                                  None    # nc_out.createDimension input: Dimension size limit ("None" == unlimited)
                                  )
+    typeValue = ncOut.createDimension(
+                                      'typeValue' , # nc_out.createDimension input: Dimension name 
+                                       None    # nc_out.createDimension input: Dimension size limit ("None" == unlimited)
+                                     )
     # add variables
     lat = ncOut.createVariable(
                                   'lat'       ,
@@ -281,6 +319,16 @@ if __name__ == "__main__":
                                   'f8'        ,
                                   ('ob')
                                 )
+    typ = ncOut.createVariable(
+                                  'typ'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
+    typeValues = ncOut.createVariable(
+                                      'typeValues',
+                                      'i8'        ,
+                                      ('typeValue')
+                                     )
     # fill netCDF output file
     lat[:]      = supLat
     lon[:]      = supLon
@@ -295,6 +343,21 @@ if __name__ == "__main__":
     pvr[:]      = supPvr
     tvr[:]      = supTvr
     dvr[:]      = supDvr
+    # for typ, convert array of values (as integer) to a concatenated string
+    supTypStr = np.apply_along_axis(func1d=array_int_to_str, axis=1, arr=supTyp.astype('int32'))
+    # then translate each string of 0's and 1's into a base-2 (binary) integer for output
+    f = lambda x: int(x, 2)  # lambda function for converting string to base-2 integer
+    # NOTE: the resulting binary-encoded value can be reconstructed into the equivalent string
+    #       of 0s and 1s using the following formula:
+    #
+    #       q = lambda x: format(x, 'b').rjust(np.size(typeValues),'0')
+    #
+    #       translating back and forth from string_ to binary_value:
+    #
+    #       binary_value = f(string_value)
+    #       string_value = q(binary_value)
+    typ[:]    = np.asarray([f(x) for x in supTypStr])
+    typeValues[:] = allTypes
     # close ncOut
     ncOut.close()
 #
