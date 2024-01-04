@@ -159,7 +159,9 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid, allTypes):
             SOlat[i] = meanLats
             SOlon[i] = meanLons
             #  2. SO{pre,tim,uwd,vwd} can all be calculated as a mean value along the 1-axis
-            SOpre[i] = np.mean(pre[SOIdx], axis=1)
+            #     instead of a straightforward mean of pre, we will instead perform a mean
+            #     of log10(pre) and compute SOpre as np.power(10.,np.mean(np.log10(pre[SOIdx]),axis=1))
+            SOpre[i] = np.power(10., np.mean(np.log10(pre[SOIdx]), axis=1))
             SOtim[i] = np.mean(tim[SOIdx], axis=1)
             #     we will add a resizing of the (SOuwd,SOvwd) vector to the mean wind-speed
             #     among AMV members, to account for cancelation of u/v components in
