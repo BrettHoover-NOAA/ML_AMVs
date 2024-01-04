@@ -5,6 +5,7 @@ clustering/*.png
 clustering/*bufr_d*
 clustering/testing/
 labeling/testing/
+learning/*.pbz2
 # general tidiness
 clustering/__pycache__/
 clustering/*.so
