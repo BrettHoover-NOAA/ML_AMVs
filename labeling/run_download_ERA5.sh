@@ -20,5 +20,5 @@ conda env list
 #
 anaDateTime=${1}
 
-python download_ERA5.py ${anaDateTime}
-
+#python download_ERA5.py ${anaDateTime}
+python download_ERA5_CISL.py ${anaDateTime}

@@ -24,5 +24,6 @@ inputNetcdfFile=${3}
 era5DataDir=${4}
 outputNetcdfFile=${5}
 
-python label_superobs_ERA5.py ${anaDateTime} ${obDataDir} ${inputNetcdfFile} ${era5DataDir} ${outputNetcdfFile}
+#python label_superobs_ERA5.py ${anaDateTime} ${obDataDir} ${inputNetcdfFile} ${era5DataDir} ${outputNetcdfFile}
+python label_superobs_ERA5_CISL.py ${anaDateTime} ${obDataDir} ${inputNetcdfFile} ${era5DataDir} ${outputNetcdfFile}
 
