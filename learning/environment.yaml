@@ -1,0 +1,19 @@
+name: ML-learning
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python
+  - numpy
+  - matplotlib
+  - netcdf4
+  - cartopy
+  - jupyter
+  - xarray
+  - cfgrib
+  - pandas
+  - geopandas
+  - metpy
+  - pytorch
+  - pip
+  - pip:
