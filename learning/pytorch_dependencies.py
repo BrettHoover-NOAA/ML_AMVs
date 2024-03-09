@@ -13,18 +13,18 @@ import glob
 # > from torch.utils.data import Dataset, DataLoader
 # > import glob
 # >
-# > superobDataset = SuperobDataset()
+# > superobDataset = SuperobDataset(dataDir="/path/to/data/directory/")
 # > superobLoader = DataLoader(superobDataset, batch_size=None, shuffle=False, num_workers=0)
 class SuperobDataset(Dataset):
-    def __init__(self):
-        self.nc4_path = "../test-data/labeling/"
-        dir_list = glob.glob(self.nc4_path + "*")
+    def __init__(self, dataDir):
+        self.nc4_path = dataDir + "/" if dataDir[-1] != "/" else dataDir
+        date_list = glob.glob(self.nc4_path + "*")
         self.data = []
-        for class_path in dir_list:
-            class_name = class_path.split("/")[-1]
-            for nc4_path in glob.glob(class_path + "/*_superobs.nc"):
-                self.data.append([nc4_path, class_name])
-        print(len(self.data), " files of ", len(dir_list), " directories loaded")
+        for date_path in date_list:
+            date_name = date_path.split("/")[-1]
+            for nc4_path in glob.glob(date_path + "/*_superobs.nc"):
+                self.data.append([nc4_path, date_name])
+        print(len(self.data), " files of ", len(date_list), " directories loaded")        
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
@@ -68,18 +68,18 @@ class SuperobDataset(Dataset):
 # > from torch.utils.data import Dataset, DataLoader
 # > import glob
 # >
-# > labelDataset = LabelDataset()
+# > labelDataset = LabelDataset(dataDir='/path/to/data/directory/')
 # > labelLoader = DataLoader(labelDataset, batch_size=None, shuffle=False, num_workers=0)
 class LabelDataset(Dataset):
-    def __init__(self):
-        self.nc4_path = "../test-data/labeling/"
-        dir_list = glob.glob(self.nc4_path + "*")
+    def __init__(self, dataDir):
+        self.nc4_path = dataDir + "/" if dataDir[-1] != "/" else dataDir
+        date_list = glob.glob(self.nc4_path + "*")
         self.data = []
-        for class_path in dir_list:
-            class_name = class_path.split("/")[-1]
-            for nc4_path in glob.glob(class_path + "/*_superobs_labels_ERA5.nc"):
-                self.data.append([nc4_path, class_name])
-        print(len(self.data), " files of ", len(dir_list), " directories loaded")
+        for date_path in date_list:
+            date_name = date_path.split("/")[-1]
+            for nc4_path in glob.glob(date_path + "/*_superobs_labels_ERA5.nc"):
+                self.data.append([nc4_path, date_name])
+        print(len(self.data), " files of ", len(date_list), " directories loaded")        
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):

@@ -6,7 +6,11 @@ clustering/*bufr_d*
 clustering/testing/
 labeling/testing/
 learning/*.pbz2
+learning/*.pkl
+learning/training
+learning/validation
 # general tidiness
 clustering/__pycache__/
+learning/__pycache__/
 clustering/*.so
 clustering/*.out
