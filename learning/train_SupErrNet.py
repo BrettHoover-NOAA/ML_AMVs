@@ -21,6 +21,12 @@ class SupErrNet(nn.Module):
                                                nn.ReLU(),         # nonlinear transformation
                                                nn.Linear(9, 9),   # hidden layer 3
                                                nn.ReLU(),         # nonlinear transformation
+                                               nn.Linear(9, 9),   # hidden layer 4
+                                               nn.ReLU(),         # nonlinear transformation
+                                               nn.Linear(9, 9),   # hidden layer 5
+                                               nn.ReLU(),         # nonlinear transformation
+                                               nn.Linear(9, 9),   # hidden layer 6
+                                               nn.ReLU(),         # nonlinear transformation
                                                nn.Linear(9, 1)    # output layer
                                               )
     def forward(self, x):
@@ -239,6 +245,8 @@ if __name__ == "__main__":
                                                     lossTrain=[],
                                                     lossValid=[],
                                                     epoch=0)
+    # save model after epoch of training to saveDir
+    torch.save(model.state_dict(), saveDir + userInputs.saveName + 'E{:d}'.format(0))
     # train remaining epochs, passing existing lossTrain and lossValid as inputs
     if nEpochs > 1:
         for ep in range(1,nEpochs):
@@ -252,11 +260,11 @@ if __name__ == "__main__":
                                                             lossTrain=lossTrain,
                                                             lossValid=lossValid,
                                                             epoch=ep)
+            # save model after epoch of training to saveDir
+            torch.save(model.state_dict(), saveDir + userInputs.saveName + 'E{:d}'.format(ep))
     # report training statistics
     for ep in range(nEpochs):
         print('epoch {:d}: train={:.6E}, valid={:.6E}'.format(ep, lossTrain[ep], lossValid[ep]))
-    # save model to saveDir
-    torch.save(model.state_dict(), saveDir + userInputs.saveName)
     # save pickle-file containing training statistics
     picklePayload = (lossTrain, lossValid)
     with open(saveDir + userInputs.saveName + '.pkl', 'wb') as f:
