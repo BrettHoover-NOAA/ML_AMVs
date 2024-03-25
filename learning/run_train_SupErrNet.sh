@@ -26,4 +26,4 @@ runDir=${5}
 modelName=${6}
 
 #python train_SupErrNet_epoch.py ${trainDir} ${validDir} ${epoch} ${annealing} ${runDir} ${modelName}
-python train_SupErrNet3.py ${trainDir} ${validDir} ${epoch} ${annealing} ${runDir} ${modelName}
+python train_SupErrNet5.py ${trainDir} ${validDir} ${epoch} ${annealing} ${runDir} ${modelName}

@@ -15,11 +15,11 @@ class SupErrNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(11, 9),  # input layer
+            nn.Linear(32,23),  # input layer
             nn.LeakyReLU(),
-            nn.Linear(9, 9),  # hidden layer 1
+            nn.Linear(23, 23),  # hidden layer 1
             nn.LeakyReLU(),
-            nn.Linear(9, 1)    # output layer
+            nn.Linear(23, 1)    # output layer
         )
 
     def forward(self, x):
@@ -126,9 +126,34 @@ def extract_predictors(dataset):
     xmin = 0.
     xmax = 1.0e+10
     dvr = (dvr - xmin) / (xmax - xmin)
-    # NOTE: has_* variables are binary [0,1] and are not normalized by default
+    # NOTE: has_* variables are binary [0,1] and are normalized to [-1,1] instead
+    has_240[torch.where(has_240==0)] = -1
+    has_241[torch.where(has_241==0)] = -1
+    has_242[torch.where(has_242==0)] = -1
+    has_243[torch.where(has_243==0)] = -1
+    has_244[torch.where(has_244==0)] = -1
+    has_245[torch.where(has_245==0)] = -1
+    has_246[torch.where(has_246==0)] = -1
+    has_247[torch.where(has_247==0)] = -1
+    has_248[torch.where(has_248==0)] = -1
+    has_249[torch.where(has_249==0)] = -1
+    has_250[torch.where(has_250==0)] = -1
+    has_251[torch.where(has_251==0)] = -1
+    has_252[torch.where(has_252==0)] = -1
+    has_253[torch.where(has_253==0)] = -1
+    has_254[torch.where(has_254==0)] = -1
+    has_255[torch.where(has_255==0)] = -1
+    has_256[torch.where(has_256==0)] = -1
+    has_257[torch.where(has_257==0)] = -1
+    has_258[torch.where(has_258==0)] = -1
+    has_259[torch.where(has_259==0)] = -1
+    has_260[torch.where(has_260==0)] = -1
     # construct stacked tensor of predictors
-    predictors = torch.stack([uwd, vwd, lat, pre, nob, nty, uvr, vvr, pvr, tvr, dvr])
+    predictors = torch.stack([uwd, vwd, lat, pre, nob, nty, uvr, vvr, pvr, tvr, dvr,
+                              has_240, has_241, has_242, has_243, has_244, has_245,
+                              has_246, has_247, has_248, has_249, has_250, has_251,
+                              has_252, has_253, has_254, has_255, has_256, has_257,
+                              has_258, has_259, has_260])
     # return predictors
     return predictors
 
@@ -153,10 +178,6 @@ def extract_predictands(dataset, labelset):
     vlb = labelset[1]
     # construct predictands tensor (length of vector difference between data and labels)
     predictands = torch.sqrt(torch.pow(ulb-uwd,2.)+torch.pow(vlb-vwd,2.))
-    # normalize predictands based on estimated bounds of [0,150] (~100M superobs used to estimate)
-    #xmin = 0.
-    #xmax = 150.
-    #predictands = (predictands - xmin) / (xmax - xmin)
     # return predictands
     return predictands
 
@@ -196,15 +217,6 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
             kp = np.intersect1d(kp,torch.where(torch.isnan(inputs[j])==False)[0].numpy())
         for j in range(len(labels)):
             kp = np.intersect1d(kp,torch.where(torch.isnan(labels[j])==False)[0].numpy())
-        # let's also filter out extreme outliers
-        # since Y is normalized, must also normalize outlier values
-        # hard-coding bounds, but CHECK extract_predictands() to see if this is right!
-        #pMin = 1.
-        #pMax = 150.
-        #yMin = (1. - pMin) / (pMax - pMin)
-        #yMax = (20. - pMin) / (pMax - pMin)
-        #kp = np.intersect1d(kp,torch.where(Y<=yMax)[0].numpy())   # TEST LINE: omit > 20 m/s differences
-        #kp = np.intersect1d(kp,torch.where(Y>=yMin)[0].numpy())   # TEST LINE: omit < 1 m/s differences
         print('Training batch {:d} of {:d} ({:d} obs)'.format(i+1, len(dataTrainLoader), len(kp)))
         X = X[:,kp]
         if len(Y.shape) == 1:
@@ -342,11 +354,15 @@ if __name__ == "__main__":
     superobValidLoader = DataLoader(superobValidDataSet, batch_size=None, shuffle=False, num_workers=0)
     labelValidLoader = DataLoader(labelValidDataSet, batch_size=None, shuffle=False, num_workers=0)
     anneal = userInputs.anneal
-    # learningRate is computed as a base rate multiplied by an annealing rate every epoch
-    baseLearningRate = 1e-6
-    learningRate = (anneal ** epoch) * baseLearningRate
-    # define optimizer based on current learningRate
+    baseLearningRate = 4e-5
+    learningRate = baseLearningRate
+    # epoch 0: define optimizer based on current (base) learningRate
     optimizer = torch.optim.Adam(model.parameters(), lr=learningRate)
+    # epoch >0: define optimizer based on prior epoch's optimizer state-dictionary and apply annealing
+    if epoch > 0:
+        optimizer.load_state_dict(torch.load(saveDir + userInputs.saveName + "E{:d}_optimizer".format(epoch-1)))
+        for g in optimizer.param_groups:
+            g['lr'] = anneal * g['lr']
     # train epoch
     (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain, 
      lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid) = train_and_validate_epoch(model,
@@ -359,6 +375,8 @@ if __name__ == "__main__":
                                                                                        miniBatchSize=32)
     # save model to saveDir
     torch.save(model.state_dict(), saveDir + userInputs.saveName + "E{:d}".format(epoch))
+    # save optimizer state to saveDir
+    torch.save(optimizer.state_dict(), saveDir + userInputs.saveName + "E{:d}_optimizer".format(epoch))
     # save pickle-file containing training statistics
     picklePayload = (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain,
                      lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid)

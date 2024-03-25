@@ -3,8 +3,8 @@ runDir=`pwd`
 trainDir=${runDir}/training
 validDir=${runDir}/validation
 nEpochs=10
-annealing=0.95
-modelName=SupErrNet3_H1P11
+annealing=0.25
+modelName=SupErrNet5_H1P32
 
 runTime=2:00:00
 
