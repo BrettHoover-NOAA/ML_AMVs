@@ -15,11 +15,13 @@ class SupErrNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(11, 5),  # input layer
+            nn.Linear(11, 9),  # input layer
             nn.LeakyReLU(),
-            nn.Linear(5, 5),  # hidden layer
+            nn.Linear(9, 9),  # hidden layer 1
             nn.LeakyReLU(),
-            nn.Linear(5, 1)    # output layer
+            nn.Linear(9, 9),  # hidden layer 2
+            nn.LeakyReLU(),
+            nn.Linear(9, 1)    # output layer
         )
 
     def forward(self, x):
@@ -82,22 +84,22 @@ def extract_predictors(dataset):
     xmin = -180.
     xmax = 180.
     lon = (lon - xmin) / (xmax - xmin)
-    # pre: normalize by estimated bounds of [100,1050]
-    xmin = 100.
-    xmax = 1050.
-    pre = (pre - xmin) / (xmax - xmin)
+    # pre: standardize by estimated mean/std of [65520.,29367.]
+    xmean = 65520.
+    xstdv = 29367.
+    pre = (pre - xmean) / (xstdv)
     # tim: normalize by known bounds of [-3,3]
     xmin = -3.
     xmax = 3.
     tim = (tim - xmin) / (xmax - xmin)
-    # uwd: normalize by estimated bounds of [-170,170]
-    xmin = -170.
-    xmax = 170.
-    uwd = (uwd - xmin) / (xmax - xmin)
-    # vwd: normalize by estimated bounds of [-130,130]
-    xmin = -130.
-    xmax = 130.
-    vwd = (vwd - xmin) / (xmax - xmin)
+    # uwd: standardize by estimated mean/std of [3.,14.]
+    xmean = 3.
+    xstdv = 14.
+    uwd = (uwd - xmean) / (xstdv)
+    # vwd: standardize by estimated mean/std of [1.,8.8]
+    xmean = 1.
+    xstdv = 8.8
+    vwd = (vwd - xmean) / (xstdv)
     # nob: normalize by estimated bounds of [0,500]
     xmin = 0.
     xmax = 550.
@@ -106,14 +108,14 @@ def extract_predictors(dataset):
     xmin = 1.
     xmax = 7.
     nty = (nty - xmin) / (xmax - xmin)
-    # uvr: normalize by estimated bounds of [0,28]
-    xmin = 0.
-    xmax = 28.
-    uvr = (uvr - xmin) / (xmax - xmin)
-    # vvr: normalize by estimated bounds of [0,25]
-    xmin = 0.
-    xmax = 25.
-    vvr = (vvr - xmin) / (xmax - xmin)
+    # uvr: standardize by estimated mean/std of [0.217,0.738]
+    xmean = 0.217
+    xstdv = 0.738
+    uvr = (uvr - xmean) / (xstdv)
+    # vvr: standardize by estimated mean/std of [0.210,0.723]
+    xmean = 0.210
+    xstdv = 0.723
+    vvr = (vvr - xmean) / (xstdv)
     # pvr: normalize by known bounds of [0,6.25e+06] (with 25000Pa max search distance)
     xmin = 0.
     xmax = 6.25e+06
@@ -154,9 +156,9 @@ def extract_predictands(dataset, labelset):
     # construct predictands tensor (length of vector difference between data and labels)
     predictands = torch.sqrt(torch.pow(ulb-uwd,2.)+torch.pow(vlb-vwd,2.))
     # normalize predictands based on estimated bounds of [0,150] (~100M superobs used to estimate)
-    xmin = 0.
-    xmax = 150.
-    predictands = (predictands - xmin) / (xmax - xmin)
+    #xmin = 0.
+    #xmax = 150.
+    #predictands = (predictands - xmin) / (xmax - xmin)
     # return predictands
     return predictands
 
@@ -198,11 +200,13 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
             kp = np.intersect1d(kp,torch.where(torch.isnan(labels[j])==False)[0].numpy())
         # let's also filter out extreme outliers
         # since Y is normalized, must also normalize outlier values
-        # hard-coding bounds of [0,150], but CHECK extract_predictands() to see if this is right!
-        #yMin = (2. - 0.) / (150. - 0.)
-        #yMax = (12. - 0.) / (150. - 0.)
-        #kp = np.intersect1d(kp,torch.where(Y<=yMax)[0].numpy())   # TEST LINE: omit > 12 m/s differences
-        #kp = np.intersect1d(kp,torch.where(Y>=yMin)[0].numpy())   # TEST LINE: omit < 2 m/s differences
+        # hard-coding bounds, but CHECK extract_predictands() to see if this is right!
+        #pMin = 1.
+        #pMax = 150.
+        #yMin = (1. - pMin) / (pMax - pMin)
+        #yMax = (20. - pMin) / (pMax - pMin)
+        #kp = np.intersect1d(kp,torch.where(Y<=yMax)[0].numpy())   # TEST LINE: omit > 20 m/s differences
+        #kp = np.intersect1d(kp,torch.where(Y>=yMin)[0].numpy())   # TEST LINE: omit < 1 m/s differences
         print('Training batch {:d} of {:d} ({:d} obs)'.format(i+1, len(dataTrainLoader), len(kp)))
         X = X[:,kp]
         if len(Y.shape) == 1:
@@ -341,7 +345,7 @@ if __name__ == "__main__":
     labelValidLoader = DataLoader(labelValidDataSet, batch_size=None, shuffle=False, num_workers=0)
     anneal = userInputs.anneal
     # learningRate is computed as a base rate multiplied by an annealing rate every epoch
-    baseLearningRate = 1e-6
+    baseLearningRate = 1e-7
     learningRate = (anneal ** epoch) * baseLearningRate
     # define optimizer based on current learningRate
     optimizer = torch.optim.Adam(model.parameters(), lr=learningRate)

@@ -15,11 +15,11 @@ class SupErrNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(11, 5),  # input layer
+            nn.Linear(11, 9),  # input layer
             nn.LeakyReLU(),
-            nn.Linear(5, 5),  # hidden layer
+            nn.Linear(9, 9),  # hidden layer
             nn.LeakyReLU(),
-            nn.Linear(5, 1)    # output layer
+            nn.Linear(9, 1)    # output layer
         )
 
     def forward(self, x):

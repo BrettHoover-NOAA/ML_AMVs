@@ -20,9 +20,10 @@ conda env list
 #
 trainDir=${1}
 validDir=${2}
-nEpochs=${3}
-runDir=${4}
-modelName=${5}
+epoch=${3}
+annealing=${4}
+runDir=${5}
+modelName=${6}
 
-python train_SupErrNet.py ${trainDir} ${validDir} ${nEpochs} ${runDir} ${modelName}
-
+#python train_SupErrNet_epoch.py ${trainDir} ${validDir} ${epoch} ${annealing} ${runDir} ${modelName}
+python train_SupErrNet3.py ${trainDir} ${validDir} ${epoch} ${annealing} ${runDir} ${modelName}
