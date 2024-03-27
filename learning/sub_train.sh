@@ -4,7 +4,7 @@ trainDir=${runDir}/training
 validDir=${runDir}/validation
 nEpochs=10
 annealing=0.25
-modelName=SupErrNet5_H1P32
+modelName=SupErrNet6_H2P32
 
 runTime=2:00:00
 
