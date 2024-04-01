@@ -1,31 +1,31 @@
 #! /bin/bash
 # datetime settings
-YYYY=2023
-MM=04
-DD=05
-HH=00
+YYYY=${1}
+MM=${2}
+DD=${3}
+HH=${4}
 # define analysis datetime
 anaDateTime=${YYYY}${MM}${DD}${HH}
 # clustering settings
 threshDist=100.0       # default setting: 100.0 (km)
-threshPres=5000.0      # default setting: 5000.0 (Pa)
-threshTime=0.5         # default setting: 0.5 (frac. hrs)
+threshPres=2500.0      # default setting: 5000.0 (Pa)
+threshTime=0.5        # default setting: 0.5 (frac. hrs)
 threshUwnd=5.0         # default setting: 5.0 (m/s)
 threshVwnd=5.0         # default setting: 5.0 (m/s)
 # tile settings
-nPreBins=6
+nPreBins=4
 minTilePre=10000.0     # pad minimum pressure to avoid errors when computing optimal tiles
 maxTilePre=110000.0    # pad maximum pressure to avoid errors when computing optimal tiles
 haloPre=${threshPres}  # pressure halo is set to threshPres
-nTimBins=5
+nTimBins=4
 minTileTim=-3.1        # pad minimum time to avoid errors when computing optimal tiles
 maxTileTim=3.1         # pad maximum time to avoid errors when computing optimal tiles
 haloTim=${threshTime}  # time halo is set to threshTime
 optBins=True
-memPerTile=4g          # default setting: 2300M
+memPerTile=8g          # default setting: 2300M
 # directory settings
 repoDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering
-cpythonExec=/scratch1/NCEPDEV/da/Brett.Hoover/SATWNDBUFR/python_bufr/ioda-bundle/build/lib64/python3.6/pyiodaconv/bufr.cpython-36m-x86_64-linux-gnu.so
+cpythonExec=/scratch1/NCEPDEV/da/Brett.Hoover/SATWNDBUFR/python_bufr/ioda-bundle/build/lib64/python3.10/pyiodaconv/bufr.cpython-310-x86_64-linux-gnu.so
 runDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering/testing/${anaDateTime}
 currDir=`pwd`
 
