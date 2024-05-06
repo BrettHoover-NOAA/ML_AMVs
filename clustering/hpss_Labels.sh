@@ -20,14 +20,14 @@ tarfile=${tarfile:-${YYYYMM}.tar}                                               
 #   the data for the corresponding directory has already been
 #   tarred and saved.
 #
-
- hsi "ls -l ${hpssdir}/${tarfile}.idx"
- tar_file_exists=$?
- if [ $tar_file_exists -eq 0 ]
-  then
-   echo "File $tarfile already saved."
-  exit
- fi
+#
+# hsi "ls -l ${hpssdir}/${tarfile}.idx"
+# tar_file_exists=$?
+# if [ $tar_file_exists -eq 0 ]
+#  then
+#   echo "File $tarfile already saved."
+#  exit
+# fi
 
 #   htar is used to create the archive, -P creates
 #   the directory path if it does not already exist,
