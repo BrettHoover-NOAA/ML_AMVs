@@ -45,6 +45,8 @@ def array_int_to_str(a):
 #   vwd: vector of ob v-wind component (float, m/s)
 #   typ: vector of ob type (integer, categorical)
 #   cid: vector of ob cluster-ID (integer, categorical)
+#   sid: vector of ob satellite-IDs (integer, categorical)
+#   qin: vector of ob quality indicator values (integer, unitless)
 #   allTypes: vector of all possible ob-types among obs (integer, categorical)
 #
 # OUTPUTS:
@@ -56,18 +58,21 @@ def array_int_to_str(a):
 #   SOvwd: vector of super-ob v-wind component (float, m/s)
 #   SOnob: vector of super-ob number of member observations (integer)
 #   SOnty: vector of super-ob number of member ob-types (integer)
+#   SOnid: vector of super-ob number of member satellite-IDs (integer)
+#   SOqim: vector of super-ob mean quality indicator value (float, unitless)
 #   SOuvr: vector of super-ob variance of member u-wind components (float, (m/s)**2)
 #   SOvvr: vector of super-ob variance of member v-wind components (float, (m/s)**2)
 #   SOpvr: vector of super-ob variance of member pressures (float, Pa**2)
 #   SOtvr: vector of super-ob variance of member times (float, (frc. hrs)**2)
 #   SOdvr: vector of super-ob variance in [x,y]-space, as variance in distance from epoch point (float, (m)**2.)
+#   SOqvr: vector of super-ob variances in quality indicator values (float, unitless**2)
 #   SOtyp: vector of (typeValue,)-dimension vectors identifying the presence (=1) or absence (=0) of each ob-type
 #          present in file
 #
 # DEPENDENCIES:
 #   numpy
 #   pyproj
-def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid, allTypes):
+def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid, sid, qin, allTypes):
     # create an internal function to count then number of unique typ values for an array of vectors
     def num_types(a):
         return np.size(np.unique(a))
@@ -99,11 +104,14 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid, allTypes):
     SOvwd = np.nan*np.ones((nCIDs,))  # v-wind (float, m/s)
     SOnob = np.nan*np.ones((nCIDs,))  # number of AMV members (integer)
     SOnty = np.nan*np.ones((nCIDs,))  # number of AMV types among members (integer)
+    SOnid = np.nan*np.ones((nCIDs,))  # number of AMV satellite-IDs among members (integer)
+    SOqim = np.nan*np.ones((nCIDs,))  # mean of AMV quality indicator values (float, unitless)
     SOuvr = np.nan*np.ones((nCIDs,))  # u-wind variance among members (float, m^2/s^2)
     SOvvr = np.nan*np.ones((nCIDs,))  # v-wind variance among members (float, m^2/s^2)
     SOpvr = np.nan*np.ones((nCIDs,))  # pressure variance among members (float, Pa^2)
     SOtvr = np.nan*np.ones((nCIDs,))  # time variance among members (float, frac. hrs.^2)
     SOdvr = np.nan*np.ones((nCIDs,))  # [x,y]-space variance among members as distance from epoch point (float, m^2)
+    SOqvr = np.nan*np.ones((nCIDs,))  # QI variance among members (float, unitless^2)
     SOtyp = np.nan*np.ones((nCIDs, numTypes)) # each ob-type in allTypes: present (=1) or absent (=0) from super-ob (integer)
     # start with the singleton (1-member) "clusters", and assign directly to the superOb arrays
     n = 1
@@ -121,11 +129,14 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid, allTypes):
         SOvwd[i] = vwd[x]
         SOnob[i] = 1.
         SOnty[i] = 1.
+        SOnid[i] = 1.
+        SOqim[i] = qin[x]
         SOuvr[i] = 0.
         SOvvr[i] = 0.
         SOpvr[i] = 0.
         SOtvr[i] = 0.
         SOdvr[i] = 0.
+        SOqvr[i] = 0.
         # track_types can be applied to each singleton cluster by reshaping to (-1,1) and
         # applying function to each element along axis=1
         SOtyp[i, :] = np.apply_along_axis(func1d=track_types, axis=1, arr=typ[x].reshape(-1,1))
@@ -188,16 +199,21 @@ def define_superobs(lat, lon, pre, tim, uwd, vwd, typ, cid, allTypes):
             SOnob[i] = n
             #  4. SOnty is computed by applying num_types along the 1-axis of typ[SOIdx]
             SOnty[i] = np.apply_along_axis(func1d=num_types, axis=1, arr=typ[SOIdx])
-            #  5. SO{uvr,vvr,pvr,tvr} is calculated as a variance along the 1-axis
+            #  5. SOnid is computed by applying num_types along the 1-axis of sid[SOIdx]
+            SOnid[i] = np.apply_along_axis(func1d=num_types, axis=1, arr=sid[SOIdx])
+            #  6. SOqim is computed as the mean along the 1-axis of float(qin[SOIdx])
+            SOqim[i] = np.mean(qin[SOIdx].astype('float32'), axis=1)
+            #  7. SO{uvr,vvr,pvr,tvr,qvr} is calculated as a variance along the 1-axis
             SOuvr[i] = np.var(uwd[SOIdx], axis=1)
             SOvvr[i] = np.var(vwd[SOIdx], axis=1)
             SOpvr[i] = np.var(pre[SOIdx], axis=1)
             SOtvr[i] = np.var(tim[SOIdx], axis=1)
             SOdvr[i] = np.var(distXYs, axis=1)
-            # 6. SOtyp is computed by applying track_types along the 1-axis of typ[SOIdx]
+            SOqvr[i] = np.var(qin[SOIdx].astype('float32'), axis=1)
+            # 8. SOtyp is computed by applying track_types along the 1-axis of typ[SOIdx]
             SOtyp[i,:] = np.apply_along_axis(func1d=track_types, axis=1, arr=typ[SOIdx])
     # return SO vectors
-    return (SOlat, SOlon, SOpre, SOtim, SOuwd, SOvwd, SOnob, SOnty, SOuvr, SOvvr, SOpvr, SOtvr, SOdvr, SOtyp)
+    return (SOlat, SOlon, SOpre, SOtim, SOuwd, SOvwd, SOnob, SOnty, SOnid, SOqim, SOuvr, SOvvr, SOpvr, SOtvr, SOdvr, SOqvr, SOtyp)
 #
 # begin
 #
@@ -221,11 +237,13 @@ if __name__ == "__main__":
     amvUwd = np.asarray(hdl.variables['uwd']).squeeze()  # AMV u-wind component (float, m/s)
     amvVwd = np.asarray(hdl.variables['vwd']).squeeze()  # AMV v-wind component (float, m/s)
     amvTyp = np.asarray(hdl.variables['typ']).squeeze()  # AMV type (integer, categorical)
+    amvSID = np.asarray(hdl.variables['sid']).squeeze()  # AMV satellite-ID (integer, categorical)
+    amvQIN = np.asarray(hdl.variables['qin']).squeeze()  # AMV type (integer, unitless)
     amvCID = np.asarray(hdl.variables['cid']).squeeze()  # AMV cluster-ID (integer, categorical)
     # define list of all unique observation-types among AMVs in dataset
     allTypes = np.unique(amvTyp.astype('int32'))
     # compute superobs and metadata
-    superobData = define_superobs(amvLat, amvLon, amvPre, amvTim, amvUwd, amvVwd, amvTyp, amvCID, allTypes)
+    superobData = define_superobs(amvLat, amvLon, amvPre, amvTim, amvUwd, amvVwd, amvTyp, amvCID, amvSID, amvQIN, allTypes)
     supLat = superobData[0]   # superob latitude (float, deg)
     supLon = superobData[1]   # superob longitude (float, deg)
     supPre = superobData[2]   # superob pressure (float, Pa)
@@ -234,12 +252,15 @@ if __name__ == "__main__":
     supVwd = superobData[5]   # superob v-wind component (float, m/s)
     supNob = superobData[6]   # superob metadata: number of AMVs in cluster (integer)
     supNty = superobData[7]   # superob metadata: number of AMV types in cluster (integer)
-    supUvr = superobData[8]   # superob metadata: variance in u-wind among AMVs in cluster (float, (m/s)**2.)
-    supVvr = superobData[9]   # superob metadata: variance in v-wind among AMVs in cluster (float, (m/s)**2.)
-    supPvr = superobData[10]  # superob metadata: variance in pressure among AMVs in cluster (float, (Pa)**2.)
-    supTvr = superobData[11]  # superob metadata: variance in time among AMVs in cluster (float, (frc. hrs)**2.)
-    supDvr = superobData[12]  # superob metadata: variance in [x,y]-space among AMVs in cluster, as distance from epoch point (float, (m)**2.)
-    supTyp = superobData[13]  # superob metadata: among types in allTypes, present (=1) or absent (=0) in superob (integer)
+    supNid = superobData[8]   # superob metadata: number of satellite-IDs in cluster (integer)
+    supQim = superobData[9]   # superob metadata: mean quality indicator in cluster (float, unitless)
+    supUvr = superobData[10]  # superob metadata: variance in u-wind among AMVs in cluster (float, (m/s)**2.)
+    supVvr = superobData[11]  # superob metadata: variance in v-wind among AMVs in cluster (float, (m/s)**2.)
+    supPvr = superobData[12]  # superob metadata: variance in pressure among AMVs in cluster (float, (Pa)**2.)
+    supTvr = superobData[13]  # superob metadata: variance in time among AMVs in cluster (float, (frc. hrs)**2.)
+    supDvr = superobData[14]  # superob metadata: variance in [x,y]-space among AMVs in cluster, as distance from epoch point (float, (m)**2.)
+    supQvr = superobData[15]  # superob metadata: variance in quality indicator among AMVs in cluster (float, unitless**2.)
+    supTyp = superobData[16]  # superob metadata: among types in allTypes, present (=1) or absent (=0) in superob (integer)
     # write superob data to output netCDF file
     ncOutFileName = dataDir + userInputs.outputNetcdfFile
     ncOut = Dataset( 
@@ -297,6 +318,16 @@ if __name__ == "__main__":
                                   'i8'        ,
                                   ('ob')
                                )
+    nid = ncOut.createVariable(
+                                  'nid'       ,
+                                  'i8'        ,
+                                  ('ob')
+                               )
+    qim = ncOut.createVariable(
+                                  'qim'       ,
+                                  'f8'        ,
+                                  ('ob')
+                               )
     uvr = ncOut.createVariable(
                                   'uvr'       ,
                                   'f8'        ,
@@ -321,6 +352,11 @@ if __name__ == "__main__":
                                   'f8'        ,
                                   ('ob')
                                 )
+    qvr = ncOut.createVariable(
+                                  'qvr'       ,
+                                  'f8'        ,
+                                  ('ob')
+                                )
     typ = ncOut.createVariable(
                                   'typ'       ,
                                   'i8'        ,
@@ -340,11 +376,14 @@ if __name__ == "__main__":
     vwd[:]      = supVwd
     nob[:]      = supNob
     nty[:]      = supNty
+    nid[:]      = supNid
+    qim[:]      = supQim
     uvr[:]      = supUvr
     vvr[:]      = supVvr
     pvr[:]      = supPvr
     tvr[:]      = supTvr
     dvr[:]      = supDvr
+    qvr[:]      = supQvr
     # for typ, convert array of values (as integer) to a concatenated string
     supTypStr = np.apply_along_axis(func1d=array_int_to_str, axis=1, arr=supTyp.astype('int32'))
     # then translate each string of 0's and 1's into a base-2 (binary) integer for output

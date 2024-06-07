@@ -117,9 +117,9 @@ def process_NC005030(bufrFileName, returnDict):
                  'NC005030/PRLC[1]'     : 'pressure',               # (nobs,) dimension, there are multiple copies of PRLC but should all be identical
                  'NC005030/WSPD'        : 'windSpeed',              # (nobs,) dimension
                  'NC005030/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005030/AMVQIC/PCCF' : 'QIEE',                   # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
-                                                                    #                     GSI uses AMVQIC(2,4) for expectedError, so I will draw [:,3] here
-                 'NC005030/AMVIVR/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, GSI uses AMVIVR(2,1), so I will draw [:,0] here
+                 'NC005030/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005030/AMVQIC/PCCF' : 'PCCF',                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
+                 'NC005030/AMVIVR{1}/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, ioda-converter selects {1}, so I will do the same
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
     mergedDict = returnDict.copy()
@@ -160,17 +160,36 @@ def process_NC005030(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'QIEE':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            expectedError = np.append(expectedError, x[:,3].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
-            if 'expectedError' in list(returnDict.values()):
-                outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,3].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            ee_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+                if np.mean(g[:,j]) == 7.:
+                    ee_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
+            if ee_idx >= 0:
+                expectedError = np.append(expectedError, x[:,ee_idx].squeeze())
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,ee_idx].squeeze())
+            else:
+                print('EE index not found!')
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], -9. * x[:,0].squeeze())  # dummy-values
         elif mergedDict[key] == 'coefficientOfVariation':
-            coefficientOfVariation = np.append(coefficientOfVariation, x[:,0].squeeze())
+            coefficientOfVariation = np.append(coefficientOfVariation, x.squeeze())
             if 'coefficientOfVariation' in list(returnDict.values()):
-                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x[:,0].squeeze())
+                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x.squeeze())
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -195,6 +214,8 @@ def process_NC005030(bufrFileName, returnDict):
     obType = 245 * np.ones(np.shape(preQC), dtype='int')
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -288,9 +309,9 @@ def process_NC005031(bufrFileName, returnDict):
                  'NC005031/PRLC[1]'     : 'pressure',               # (nobs,) dimension, there are multiple copies of PRLC but should all be identical
                  'NC005031/WSPD'        : 'windSpeed',              # (nobs,) dimension
                  'NC005031/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005031/AMVQIC/PCCF' : 'QIEE'                    # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
-                                                                    #                     GSI uses AMVQIC(2,4) for expectedError, so I will draw [:,3] here
-                }
+                 'NC005031/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005031/AMVQIC/PCCF' : 'PCCF'                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
+               }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
     mergedDict = returnDict.copy()
     mergedDict.update(queryDict)
@@ -329,13 +350,32 @@ def process_NC005031(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'QIEE':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            expectedError = np.append(expectedError, x[:,3].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
-            if 'expectedError' in list(returnDict.values()):
-                outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,3].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            ee_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+                if np.mean(g[:,j]) == 7.:
+                    ee_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
+            if ee_idx >= 0:
+                expectedError = np.append(expectedError, x[:,ee_idx].squeeze())
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,ee_idx].squeeze())
+            else:
+                print('EE index not found!')
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], -9. * x[:,0].squeeze())  # dummy-values
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -359,6 +399,8 @@ def process_NC005031(bufrFileName, returnDict):
     obType = 247 * np.ones(np.shape(preQC), dtype='int')
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -460,9 +502,9 @@ def process_NC005032(bufrFileName, returnDict):
                  'NC005032/PRLC[1]'     : 'pressure',               # (nobs,) dimension, there are multiple copies of PRLC but should all be identical
                  'NC005032/WSPD'        : 'windSpeed',              # (nobs,) dimension
                  'NC005032/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005032/AMVQIC/PCCF' : 'QIEE',                   # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
-                                                                    #                     GSI uses AMVQIC(2,4) for expectedError, so I will draw [:,3] here
-                 'NC005032/AMVIVR/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, GSI uses AMVIVR(2,1), so I will draw [:,0] here
+                 'NC005032/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005032/AMVQIC/PCCF' : 'PCCF',                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
+                 'NC005032/AMVIVR{1}/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, ioda-converter selects {1}, so I will do the same
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
     mergedDict = returnDict.copy()
@@ -503,17 +545,36 @@ def process_NC005032(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'QIEE':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            expectedError = np.append(expectedError, x[:,3].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
-            if 'expectedError' in list(returnDict.values()):
-                outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,3].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            ee_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+                if np.mean(g[:,j]) == 7.:
+                    ee_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
+            if ee_idx >= 0:
+                expectedError = np.append(expectedError, x[:,ee_idx].squeeze())
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,ee_idx].squeeze())
+            else:
+                print('EE index not found!')
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], -9. * x[:,0].squeeze())  # dummy-values
         elif mergedDict[key] == 'coefficientOfVariation':
-            coefficientOfVariation = np.append(coefficientOfVariation, x[:,0].squeeze())
+            coefficientOfVariation = np.append(coefficientOfVariation, x.squeeze())
             if 'coefficientOfVariation' in list(returnDict.values()):
-                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x[:,0].squeeze())
+                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x.squeeze())
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -538,6 +599,8 @@ def process_NC005032(bufrFileName, returnDict):
     obType = 251 * np.ones(np.shape(preQC), dtype='int')
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -640,9 +703,9 @@ def process_NC005034(bufrFileName, returnDict):
                  'NC005034/PRLC[1]'     : 'pressure',               # (nobs,) dimension, there are multiple copies of PRLC but should all be identical
                  'NC005034/WSPD'        : 'windSpeed',              # (nobs,) dimension
                  'NC005034/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005034/AMVQIC/PCCF' : 'QIEE',                   # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
-                                                                    #                     GSI uses AMVQIC(2,4) for expectedError, so I will draw [:,3] here
-                 'NC005034/AMVIVR/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, GSI uses AMVIVR(2,1), so I will draw [:,0] here
+                 'NC005034/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005034/AMVQIC/PCCF' : 'PCCF',                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
+                 'NC005034/AMVIVR{1}/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, ioda-converter selects {1}, so I will do the same
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
     mergedDict = returnDict.copy()
@@ -683,17 +746,36 @@ def process_NC005034(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'QIEE':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            expectedError = np.append(expectedError, x[:,3].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
-            if 'expectedError' in list(returnDict.values()):
-                outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,3].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            ee_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+                if np.mean(g[:,j]) == 7.:
+                    ee_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
+            if ee_idx >= 0:
+                expectedError = np.append(expectedError, x[:,ee_idx].squeeze())
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,ee_idx].squeeze())
+            else:
+                print('EE index not found!')
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], -9. * x[:,0].squeeze())  # dummy-values
         elif mergedDict[key] == 'coefficientOfVariation':
-            coefficientOfVariation = np.append(coefficientOfVariation, x[:,0].squeeze())
+            coefficientOfVariation = np.append(coefficientOfVariation, x.squeeze())
             if 'coefficientOfVariation' in list(returnDict.values()):
-                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x[:,0].squeeze())
+                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x.squeeze())
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -718,6 +800,8 @@ def process_NC005034(bufrFileName, returnDict):
     obType = 246 * np.ones(np.shape(preQC), dtype='int')
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -819,9 +903,9 @@ def process_NC005039(bufrFileName, returnDict):
                  'NC005039/PRLC[1]'     : 'pressure',               # (nobs,) dimension, there are multiple copies of PRLC but should all be identical
                  'NC005039/WSPD'        : 'windSpeed',              # (nobs,) dimension
                  'NC005039/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005039/AMVQIC/PCCF' : 'QIEE',                   # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
-                                                                    #                     GSI uses AMVQIC(2,4) for expectedError, so I will draw [:,3] here
-                 'NC005039/AMVIVR/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, GSI uses AMVIVR(2,1), so I will draw [:,0] here
+                 'NC005039/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005039/AMVQIC/PCCF' : 'PCCF',                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
+                 'NC005039/AMVIVR{1}/CVWD' : 'coefficientOfVariation'  # (nobs,2) dimension, ioda-converter selects {1}, so I will do the same
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
     mergedDict = returnDict.copy()
@@ -862,17 +946,36 @@ def process_NC005039(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'QIEE':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            expectedError = np.append(expectedError, x[:,3].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
-            if 'expectedError' in list(returnDict.values()):
-                outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,3].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            ee_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+                if np.mean(g[:,j]) == 7.:
+                    ee_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
+            if ee_idx >= 0:
+                expectedError = np.append(expectedError, x[:,ee_idx].squeeze())
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], x[:,ee_idx].squeeze())
+            else:
+                print('EE index not found!')
+                #if 'expectedError' in list(returnDict.values()):
+                #    outputDict['expectedError'] = np.append(outputDict['expectedError'], -9. * x[:,0].squeeze())  # dummy-values
         elif mergedDict[key] == 'coefficientOfVariation':
-            coefficientOfVariation = np.append(coefficientOfVariation, x[:,0].squeeze())
+            coefficientOfVariation = np.append(coefficientOfVariation, x.squeeze())
             if 'coefficientOfVariation' in list(returnDict.values()):
-                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x[:,0].squeeze())
+                outputDict['coefficientOfVariation'] = np.append(outputDict['coefficientOfVariation'], x.squeeze())
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -897,6 +1000,8 @@ def process_NC005039(bufrFileName, returnDict):
     obType = 240 * np.ones(np.shape(preQC), dtype='int')
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1024,8 +1129,8 @@ def process_NC005044(bufrFileName, returnDict):
                     z[:] = x[:,i].squeeze()
             # append z to qualityIndicator
             qualityIndicator = np.append(qualityIndicator, z)
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], z)
+            #if 'qualityIndicator' in list(returnDict.values()):
+            #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], z)
         elif mergedDict[key] == 'windComputationMethod':
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
@@ -1055,6 +1160,8 @@ def process_NC005044(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 250  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1182,8 +1289,8 @@ def process_NC005045(bufrFileName, returnDict):
                     z[:] = x[:,i].squeeze()
             # append z to qualityIndicator
             qualityIndicator = np.append(qualityIndicator, z)
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], z)
+            #if 'qualityIndicator' in list(returnDict.values()):
+            #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], z)
         elif mergedDict[key] == 'windComputationMethod':
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
@@ -1213,6 +1320,8 @@ def process_NC005045(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 250  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1340,8 +1449,8 @@ def process_NC005046(bufrFileName, returnDict):
                     z[:] = x[:,i].squeeze()
             # append z to qualityIndicator
             qualityIndicator = np.append(qualityIndicator, z)
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], z)
+            #if 'qualityIndicator' in list(returnDict.values()):
+            #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], z)
         elif mergedDict[key] == 'windComputationMethod':
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
@@ -1371,6 +1480,8 @@ def process_NC005046(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 250  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1451,7 +1562,8 @@ def process_NC005067(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     queryDict = {
                  'NC005067/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005067/AMVQIC/PCCF' : 'qualityIndicator',       # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
+                 'NC005067/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005067/AMVQIC/PCCF' : 'PCCF',                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
                  'NC005067/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -1482,10 +1594,21 @@ def process_NC005067(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'qualityIndicator':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         elif mergedDict[key] == 'windComputationMethod':
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
@@ -1515,6 +1638,8 @@ def process_NC005067(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 254  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1594,7 +1719,8 @@ def process_NC005068(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     queryDict = {
                  'NC005068/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005068/AMVQIC/PCCF' : 'qualityIndicator',       # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
+                 'NC005068/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005068/AMVQIC/PCCF' : 'PCCF',                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
                  'NC005068/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -1625,10 +1751,21 @@ def process_NC005068(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'qualityIndicator':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         elif mergedDict[key] == 'windComputationMethod':
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
@@ -1658,6 +1795,8 @@ def process_NC005068(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 254  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1737,7 +1876,8 @@ def process_NC005069(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     queryDict = {
                  'NC005069/SAZA'        : 'zenithAngle',            # (nobs,) dimension
-                 'NC005069/AMVQIC/PCCF' : 'qualityIndicator',       # (nobs,4) dimension, GSI uses AMVQIC(2,2), so I will draw [:,1] here
+                 'NC005069/AMVQIC/GNAPS': 'GNAPS',                  # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005069/AMVQIC/PCCF' : 'PCCF',                   # (nobs,4) dimension, QI w/o forecast at GNAPS==5, EE at GNAPS==7
                  'NC005069/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -1768,10 +1908,21 @@ def process_NC005069(bufrFileName, returnDict):
             zenithAngle = np.append(zenithAngle, x)
             if 'zenithAngle' in list(returnDict.values()):
                 outputDict['zenithAngle'] = np.append(outputDict['zenithAngle'], x)
-        elif mergedDict[key] == 'qualityIndicator':
-            qualityIndicator = np.append(qualityIndicator, x[:,1].squeeze())
-            if 'qualityIndicator' in list(returnDict.values()):
-                outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,1].squeeze())
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         elif mergedDict[key] == 'windComputationMethod':
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
@@ -1801,6 +1952,8 @@ def process_NC005069(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 254  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1838,7 +1991,9 @@ def process_NC005070(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     # (NO pre-QC for this tank, but windComputationMethod required to determine observationType values)
     queryDict = {
-                 'NC005070/SWCM' : 'windComputationMethod'          # (nobs,) dimension
+                 'NC005070/GQCPRMS[1]/GNAP' : 'GNAP',                # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005070/GQCPRMS[1]/PCCF' : 'PCCF',                # (nobs,4) dimension, QI is stored where GNAP==1
+                 'NC005070/SWCM'           : 'windComputationMethod' # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
     mergedDict = returnDict.copy()
@@ -1846,6 +2001,7 @@ def process_NC005070(bufrFileName, returnDict):
     # obtain resultSet from bufr_query()
     resultSet = bufr_query(bufrFileName, mergedDict)
     # initialize empty arrays for each pre-QC variable
+    qualityIndicator = np.asarray([])
     windComputationMethod  = np.asarray([])
     # loop through keys, extract array from resultSet and append to appropriate variable array
     # and/or outputDict as appropriate.
@@ -1859,6 +2015,21 @@ def process_NC005070(bufrFileName, returnDict):
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
                 outputDict['windComputationMethod'] = np.append(outputDict['windComputationMethod'], x)
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAP')  # GNAP value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 1.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -1877,6 +2048,8 @@ def process_NC005070(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 259  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1914,6 +2087,8 @@ def process_NC005071(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     # (NO pre-QC for this tank, but windComputationMethod required to determine observationType values)
     queryDict = {
+                 'NC005071/GQCPRMS[1]/GNAP' : 'GNAP',               # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005071/GQCPRMS[1]/PCCF' : 'PCCF',               # (nobs,4) dimension, QI is stored where GNAP==1
                  'NC005071/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -1922,6 +2097,7 @@ def process_NC005071(bufrFileName, returnDict):
     # obtain resultSet from bufr_query()
     resultSet = bufr_query(bufrFileName, mergedDict)
     # initialize empty arrays for each pre-QC variable
+    qualityIndicator = np.asarray([])
     windComputationMethod  = np.asarray([])
     # loop through keys, extract array from resultSet and append to appropriate variable array
     # and/or outputDict as appropriate.
@@ -1935,6 +2111,21 @@ def process_NC005071(bufrFileName, returnDict):
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
                 outputDict['windComputationMethod'] = np.append(outputDict['windComputationMethod'], x)
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAP')  # GNAP value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 1.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -1953,6 +2144,90 @@ def process_NC005071(bufrFileName, returnDict):
     obType[np.where(windComputationMethod >= 4)] = 259  # WVDL
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
+    # return outputDict
+    return outputDict
+    #
+    # end
+    #
+
+# process_NC005072: draws NC005072 observations (LEO/GEO IR AMVs) from BUFR file, and returns
+#                   variables based on entries in returnDict.
+#
+# INPUTS:
+#    bufrFileName: full-path to BUFR file (string)
+#    returnDict: dictionary with key/value pairs representing
+#                    keys: BUFR query (string)
+#                    values: variable name (string)
+#
+# OUTPUTS:
+#    outputDict: dictionary with key/value pairs representing
+#                    keys: variable name (string)
+#                    values: vector of values (numpy vector)
+#
+# DEPENDENCIES:
+#    numpy
+#    bufr
+#    bufr_query (above)
+def process_NC005072(bufrFileName, returnDict):
+    import numpy as np
+    import bufr
+    #
+    # No pre-QC checks on NC005072, return preQC as effectively all passed (=1) values
+    #
+    #
+    # begin
+    #
+    # define dictionary of query/variable key/value pairs needed for pre_qc()
+    # (NO pre-QC for this tank, but windComputationMethod required to determine observationType values)
+    queryDict = {
+                 'NC005072/GNAP[1]': 'GNAP',                        # (nobs,) dimension, there are 3 replications, GNAP[1]=1, GNAP[2]=2, GNAP[3]=3, ioda-converters picks GNAP[1]
+                 'NC005072/LGRSQ4[1]/PCCF': 'PCCF',                 # (nobs,) dimension, corresponds to GNAP[1]=1, which is QI w/o forecast
+                 'NC005072/SWCM' : 'windComputationMethod'          # (nobs,) dimension
+                }
+    # merge this dictionary with returnDict, defaulting to these values where appropriate
+    mergedDict = returnDict.copy()
+    mergedDict.update(queryDict)
+    # obtain resultSet from bufr_query()
+    resultSet = bufr_query(bufrFileName, mergedDict)
+    # initialize empty arrays for each pre-QC variable
+    windComputationMethod  = np.asarray([])
+    qualityIndicator = np.asarray([])
+    # loop through keys, extract array from resultSet and append to appropriate variable array
+    # and/or outputDict as appropriate.
+    outputDict = {}
+    for varName in list(returnDict.values()):
+        outputDict[varName] = np.asarray([])
+    for key in list(mergedDict.keys()):
+        print('processing '+ key + '...')
+        x = resultSet.get(mergedDict[key])
+        if mergedDict[key] == 'windComputationMethod':
+            windComputationMethod = np.append(windComputationMethod, x)
+            if 'windComputationMethod' in list(returnDict.values()):
+                outputDict['windComputationMethod'] = np.append(outputDict['windComputationMethod'], x)
+        elif mergedDict[key] == 'PCCF':
+            qualityIndicator = np.append(qualityIndicator, x)
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x)
+        else:
+            # all variables in mergedDict not in queryDict, assumed to be simple variables with no
+            # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
+            # to add them here
+            print('key: ' + key + ' is NOT a pre-QC key')
+            if mergedDict[key] in list(returnDict.values()):
+                outputDict[mergedDict[key]] = np.append(outputDict[mergedDict[key]], x)
+    # send "pre-QC" check indices as all-pass (=1)
+    preQC = np.ones((np.size(windComputationMethod),), dtype='int')
+    # append preQC to outputDict
+    outputDict['preQC'] = preQC
+    # create a obType variable and assign values based on windComputationMethod
+    obType = -1 * np.ones(np.shape(preQC), dtype='int')
+    obType[np.where(windComputationMethod == 1)] = 255  # IR
+    # append obType to outputDict
+    outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -1990,6 +2265,8 @@ def process_NC005080(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     # (NO pre-QC for this tank, but windComputationMethod required to determine observationType values)
     queryDict = {
+                 'NC005080/GQCPRMS[1]/GNAP' : 'GNAP',               # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005080/GQCPRMS[1]/PCCF' : 'PCCF',               # (nobs,4) dimension, QI is stored where GNAP==1
                  'NC005080/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -1998,6 +2275,7 @@ def process_NC005080(bufrFileName, returnDict):
     # obtain resultSet from bufr_query()
     resultSet = bufr_query(bufrFileName, mergedDict)
     # initialize empty arrays for each pre-QC variable
+    qualityIndicator = np.asarray([])
     windComputationMethod  = np.asarray([])
     # loop through keys, extract array from resultSet and append to appropriate variable array
     # and/or outputDict as appropriate.
@@ -2011,6 +2289,21 @@ def process_NC005080(bufrFileName, returnDict):
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
                 outputDict['windComputationMethod'] = np.append(outputDict['windComputationMethod'], x)
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAP')  # GNAP value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 1.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -2027,6 +2320,8 @@ def process_NC005080(bufrFileName, returnDict):
     obType[np.where(windComputationMethod == 1)] = 244  # IR
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -2064,6 +2359,8 @@ def process_NC005081(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     # (NO pre-QC for this tank, but windComputationMethod required to determine observationType values)
     queryDict = {
+                 'NC005081/AMVQIC/GNAPS' : 'GNAPS',             # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005081/AMVQIC/PCCF' : 'PCCF',               # (nobs,4) dimension, QI is stored where GNAPS==5
                  'NC005081/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -2072,6 +2369,7 @@ def process_NC005081(bufrFileName, returnDict):
     # obtain resultSet from bufr_query()
     resultSet = bufr_query(bufrFileName, mergedDict)
     # initialize empty arrays for each pre-QC variable
+    qualityIndicator = np.asarray([])
     windComputationMethod  = np.asarray([])
     # loop through keys, extract array from resultSet and append to appropriate variable array
     # and/or outputDict as appropriate.
@@ -2085,6 +2383,21 @@ def process_NC005081(bufrFileName, returnDict):
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
                 outputDict['windComputationMethod'] = np.append(outputDict['windComputationMethod'], x)
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -2101,6 +2414,8 @@ def process_NC005081(bufrFileName, returnDict):
     obType[np.where(windComputationMethod == 1)] = 244  # IR
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -2138,6 +2453,8 @@ def process_NC005090(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     # (NO pre-QC for this tank, but windComputationMethod required to determine observationType values)
     queryDict = {
+                 'NC005090/AMVQIC/GNAPS' : 'GNAPS',             # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005090/AMVQIC/PCCF' : 'PCCF',               # (nobs,4) dimension, QI is stored where GNAPS==5
                  'NC005090/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -2146,6 +2463,7 @@ def process_NC005090(bufrFileName, returnDict):
     # obtain resultSet from bufr_query()
     resultSet = bufr_query(bufrFileName, mergedDict)
     # initialize empty arrays for each pre-QC variable
+    qualityIndicator = np.asarray([])
     windComputationMethod  = np.asarray([])
     # loop through keys, extract array from resultSet and append to appropriate variable array
     # and/or outputDict as appropriate.
@@ -2159,6 +2477,21 @@ def process_NC005090(bufrFileName, returnDict):
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
                 outputDict['windComputationMethod'] = np.append(outputDict['windComputationMethod'], x)
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -2175,6 +2508,8 @@ def process_NC005090(bufrFileName, returnDict):
     obType[np.where(windComputationMethod == 1)] = 260  # IR
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -2212,6 +2547,8 @@ def process_NC005091(bufrFileName, returnDict):
     # define dictionary of query/variable key/value pairs needed for pre_qc()
     # (NO pre-QC for this tank, but windComputationMethod required to determine observationType values)
     queryDict = {
+                 'NC005091/AMVQIC/GNAPS' : 'GNAPS',             # (nobs,4) dimension, determines data stored in PCCF
+                 'NC005091/AMVQIC/PCCF' : 'PCCF',               # (nobs,4) dimension, QI is stored where GNAPS==5
                  'NC005091/SWCM' : 'windComputationMethod'          # (nobs,) dimension
                 }
     # merge this dictionary with returnDict, defaulting to these values where appropriate
@@ -2220,6 +2557,7 @@ def process_NC005091(bufrFileName, returnDict):
     # obtain resultSet from bufr_query()
     resultSet = bufr_query(bufrFileName, mergedDict)
     # initialize empty arrays for each pre-QC variable
+    qualityIndicator = np.asarray([])
     windComputationMethod  = np.asarray([])
     # loop through keys, extract array from resultSet and append to appropriate variable array
     # and/or outputDict as appropriate.
@@ -2233,6 +2571,21 @@ def process_NC005091(bufrFileName, returnDict):
             windComputationMethod = np.append(windComputationMethod, x)
             if 'windComputationMethod' in list(returnDict.values()):
                 outputDict['windComputationMethod'] = np.append(outputDict['windComputationMethod'], x)
+        elif mergedDict[key] == 'PCCF':
+            g = resultSet.get('GNAPS')  # GNAPS value determines which column contains which confidence value
+            qi_idx = -9
+            for j in range(np.shape(g)[1]):
+                if np.mean(g[:,j]) == 5.:
+                    qi_idx = j
+            if qi_idx >= 0:
+                qualityIndicator = np.append(qualityIndicator, x[:,qi_idx].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], x[:,qi_idx].squeeze())
+            else:
+                print('QI index not found!')
+                qualityIndicator = np.append(qualityIndicator, -9. * x[:,0].squeeze())
+                #if 'qualityIndicator' in list(returnDict.values()):
+                #    outputDict['qualityIndicator'] = np.append(outputDict['qualityIndicator'], -9. * x[:,0].squeeze())  # dummy-values
         else:
             # all variables in mergedDict not in queryDict, assumed to be simple variables with no
             # unpacking of multi-dimensional arrays necessary, but if any special cases exist feel free
@@ -2249,6 +2602,8 @@ def process_NC005091(bufrFileName, returnDict):
     obType[np.where(windComputationMethod == 1)] = 260  # IR
     # append obType to outputDict
     outputDict['observationType'] = obType
+    # append qualityIndicator to outputDict
+    outputDict['qualityIndicator'] = qualityIndicator
     # return outputDict
     return outputDict
     #
@@ -2473,6 +2828,22 @@ def process_satwnd_tank(tankName, bufrFileName, returnDict):
         # no quirks reported
         # process and return outputDict
         outputDict = process_NC005071(bufrFileName, returnDict)
+        return outputDict
+    if tankName == 'NC005072':
+        # processing LEO/GEO IR AMVs
+        # some quirks:
+        # 1) use 'CLATH' and 'CLONH' for lat/lon values (high-precision)
+        for key in list(returnDict.keys()):
+            if 'NC005072/CLAT' in key:
+                if key[-4:] == 'CLAT':
+                    newKey = key + 'H'
+                    returnDict[newKey] = returnDict.pop(key)
+            if 'NC005072/CLON' in key:
+                if key[-4:] == 'CLON':
+                    newKey = key + 'H'
+                    returnDict[newKey] = returnDict.pop(key)
+        # process and return outputDict
+        outputDict = process_NC005072(bufrFileName, returnDict)
         return outputDict
     if tankName == 'NC005080':
         # processing NOAA IR LEO AMVs (AVHRR)

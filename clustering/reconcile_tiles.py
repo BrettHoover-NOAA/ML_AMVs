@@ -133,6 +133,8 @@ if __name__ == "__main__":
     amvTyp=np.asarray([]).astype('int')  # type (integer, categorical)
     amvIdx=np.asarray([]).astype('int')  # index (relative to input source file)
     amvPQC=np.asarray([]).astype('int')  # pre-QC (1==passed, -1==failed)
+    amvSID=np.asarray([]).astype('int')  # satellite ID (integer, categorical)
+    amvQIN=np.asarray([]).astype('int')  # quality indicator w/o forecast (integer, unitless)
     amvTID=np.asarray([]).astype('int')  # tile-index ob was processed on
     amvCID=np.asarray([]).astype('int')  # cluster index assigned from tile (-1==unassigned)
     # process tile files, appending data to master arrays
@@ -148,6 +150,8 @@ if __name__ == "__main__":
         amvTyp = np.append(amvTyp, np.asarray(hdl.variables['typ']).squeeze())
         amvIdx = np.append(amvIdx, np.asarray(hdl.variables['idx']).squeeze())
         amvPQC = np.append(amvPQC, np.asarray(hdl.variables['pqc']).squeeze())
+        amvSID = np.append(amvSID, np.asarray(hdl.variables['sid']).squeeze())
+        amvQIN = np.append(amvQIN, np.asarray(hdl.variables['qin']).squeeze())
         amvTID = np.append(amvTID, np.asarray(hdl.variables['tid']).squeeze())
         amvCID = np.append(amvCID, np.asarray(hdl.variables['cid']).squeeze())
     # define unique list of amvIdx values and counts in master array (tracking duplicates)
@@ -178,6 +182,8 @@ if __name__ == "__main__":
         amvTyp = np.delete(amvTyp, iDump)
         amvIdx = np.delete(amvIdx, iDump)
         amvPQC = np.delete(amvPQC, iDump)
+        amvSID = np.delete(amvSID, iDump)
+        amvQIN = np.delete(amvQIN, iDump)
         amvTID = np.delete(amvTID, iDump)
         amvCID = np.delete(amvCID, iDump)
         # report for clarity that 0 observations with n-duplications remain after reconciliation
@@ -246,6 +252,16 @@ if __name__ == "__main__":
                                   'i8'        ,
                                   ('ob')
                                 )
+    sid = ncOut.createVariable(
+                                  'sid'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
+    qin = ncOut.createVariable(
+                                  'qin'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
     tid = ncOut.createVariable(   'tid'       ,
                                   'i8'        ,
                                   ('ob')
@@ -265,6 +281,8 @@ if __name__ == "__main__":
     typ[:]      = amvTyp
     idx[:]      = amvIdx
     pqc[:]      = amvPQC
+    sid[:]      = amvSID
+    qin[:]      = amvQIN
     tid[:]      = amvTID
     cid[:]      = amvCID
     # close ncOut

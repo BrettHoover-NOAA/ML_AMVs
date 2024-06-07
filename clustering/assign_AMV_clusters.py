@@ -298,6 +298,8 @@ if __name__ == "__main__":
     netcdfFileName = userInputs.netcdfFileName
     hdl=Dataset(dataDir + netcdfFileName)
     # read raw (meta)data
+    ob_sid=np.asarray(hdl.variables['sid']).squeeze()
+    ob_qin=np.asarray(hdl.variables['qin']).squeeze()
     ob_pqc=np.asarray(hdl.variables['pqc']).squeeze()
     ob_typ=np.asarray(hdl.variables['typ']).squeeze()
     ob_pre=np.asarray(hdl.variables['pre']).squeeze()
@@ -430,6 +432,16 @@ if __name__ == "__main__":
                                   'f8'        ,
                                   ('ob')
                                 )
+    sid = ncOut.createVariable(
+                                  'sid'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
+    qin = ncOut.createVariable(
+                                  'qin'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
     tid = ncOut.createVariable(   'tid'       ,
                                   'i8'        ,
                                   ('ob')
@@ -462,6 +474,8 @@ if __name__ == "__main__":
     typ[:]      = ob_typ[x]
     idx[:]      = x  # ob-index: retains order of observations from input netCDF file
     pqc[:]      = ob_pqc[x]
+    sid[:]      = ob_sid[x]
+    qin[:]      = ob_qin[x]
     tid[:]      = tileValue * np.ones((np.size(x),))  # tile-index: retains which tile observation was connected to for cluster assignment
     cid[:]      = ob_cid[x]
     # close ncOut

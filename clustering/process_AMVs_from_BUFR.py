@@ -109,6 +109,7 @@ if __name__ == "__main__":
                     'NC005091'
                    ]
     # initialize empty arrays
+    obSID = np.asarray([])
     obLat = np.asarray([])
     obLon = np.asarray([])
     obPre = np.asarray([])
@@ -123,12 +124,14 @@ if __name__ == "__main__":
     obTim = np.asarray([])
     obMin = np.asarray([])
     obTyp = np.asarray([])
+    obQIn = np.asarray([])
     obPQC = np.asarray([])
     # define analysis datetime
     anDatetime = datetime.datetime.strptime(userInputs.anaDateTime, '%Y%m%d%H')
     for tankName in tankNameList:
         print('processing ' + tankName)
         outDict={
+                 tankName + '/SAID'        : 'satelliteID',
                  tankName + '/CLAT'        : 'latitude',
                  tankName + '/CLON'        : 'longitude',
                  tankName + '/PRLC'        : 'pressure',
@@ -145,6 +148,7 @@ if __name__ == "__main__":
         try:
             amvDict = process_satwnds_dependencies.process_satwnd_tank(tankName, bufrFileName, outDict)
             # append data to master arrays
+            obSID = np.append(obSID, amvDict['satelliteID'])
             obLat = np.append(obLat, amvDict['latitude'])
             obLon = np.append(obLon, amvDict['longitude'])
             obPre = np.append(obPre, amvDict['pressure'])
@@ -157,6 +161,7 @@ if __name__ == "__main__":
             obMin = np.append(obMin, amvDict['minute'])
             obTyp = np.append(obTyp, amvDict['observationType'])
             obPQC = np.append(obPQC, amvDict['preQC'])
+            obQIn = np.append(obQIn, amvDict['qualityIndicator'])
         except:
             print('warning: ' + tankName + ' was not processed due to errors')
     # derive computed variable-types for all retrieved observations
@@ -170,6 +175,8 @@ if __name__ == "__main__":
     # (2) obUwd and obVwd:
     # (2a) compute obUwd and obVwd from obSpd, obDir
     obUwd, obVwd = spddir_to_uwdvwd(obSpd, obDir.astype('float'))
+    # (3) change any non-(1,-1) value obPQC to (-9999), to flag any missing-data values that may appear
+    obPQC[np.where((obPQC != 1.) & (obPQC != -1.))] = -9999.
     # report ob-types and pre-QC
     for t in np.unique(obTyp):
         i = np.where(obTyp==t)
@@ -269,6 +276,16 @@ if __name__ == "__main__":
                                   'i8'        ,
                                   ('ob')
                                 )
+    qin = nc_out.createVariable(
+                                  'qin'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
+    sid = nc_out.createVariable(
+                                  'sid'       ,
+                                  'i8'        ,
+                                  ('ob')
+                                )
     # Fill netCDF file variables
     lat[:]      = obLat
     lon[:]      = obLon
@@ -285,6 +302,8 @@ if __name__ == "__main__":
     tim[:]      = obTim
     typ[:]      = obTyp.astype('int')
     pqc[:]      = obPQC.astype('int')
+    qin[:]      = obQIn.astype('int')
+    sid[:]      = obSID.astype('int')
     # Close netCDF file
     nc_out.close()
 #
