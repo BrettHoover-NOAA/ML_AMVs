@@ -9,6 +9,7 @@ learning/*.pbz2
 learning/*.pkl
 learning/training
 learning/validation
+conv2d/testing
 # general tidiness
 clustering/__pycache__/
 learning/__pycache__/

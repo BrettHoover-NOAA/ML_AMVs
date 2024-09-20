@@ -288,12 +288,8 @@ if __name__ == "__main__":
     parser.add_argument('obDataDir', metavar='OBDATADIR', type=str, help='full path to data directory for super-observations')
     parser.add_argument('obFile', metavar='INFILE', type=str, help='input netCDF superob file')
     parser.add_argument('era5DataDir', metavar='ERA5DATADIR', type=str, help='full path to data directory for ERA5')
-    parser.add_argument('era5TBefore', metavar='ERA5TBEFORE', type=str, help='file-name for ERA5 T data from before-period')
-    parser.add_argument('era5TDuring', metavar='ERA5TDURING', type=str, help='file-name for ERA5 T data from during-period')
-    parser.add_argument('era5TAfter', metavar='ERA5TAFTER', type=str, help='file-name for ERA5 T data from after-period')
-    parser.add_argument('era5SPBefore', metavar='ERA5SPBEFORE', type=str, help='file-name for ERA5 SP data from before-period')
-    parser.add_argument('era5SPDuring', metavar='ERA5SPDURING', type=str, help='file-name for ERA5 SP data from during-period')
-    parser.add_argument('era5SPAfter', metavar='ERA5SPAFTER', type=str, help='file-name for ERA5 SP data from after-period')
+    parser.add_argument('era5TPrefix', metavar='ERA5TPREFIX', type=str, help='file-name prefix for ERA5 T data (prior to timestamps)')
+    parser.add_argument('era5SPPrefix', metavar='ERA5SPPREFIX', type=str, help='file-name prefix for ERA5 SP data (prior to timestamps)')
     parser.add_argument('outputNetcdfFile', metavar='OUTFILE', type=str, help='output netCDF file (superobs with metadata)')
     # parse arguments
     userInputs = parser.parse_args()
@@ -305,13 +301,9 @@ if __name__ == "__main__":
     #                                 '/Users/bhoover/Desktop/IMSG/PROJECTS/ML_superob',
     #                                 'gdas.t00z.satwnd.tm00.bufr_d_2023010100_superobs.nc_TEST',
     #                                 '/Users/bhoover/Desktop/IMSG/PROJECTS/ML_superob',
-    #                                 'e5.oper.an.ml.0_5_0_0_0_t.regn320sc.2022123118_2022123123.nc',
-    #                                 'e5.oper.an.ml.0_5_0_0_0_t.regn320sc.2023010100_2023010105.nc',
-    #                                 'e5.oper.an.ml.0_5_0_0_0_t.regn320sc.2023010106_2023010111.nc',
-    #                                 'e5.oper.an.ml.128_134_sp.regn320sc.2022123118_2022123123.nc',
-    #                                 'e5.oper.an.ml.128_134_sp.regn320sc.2023010100_2023010105.nc',
-    #                                 'e5.oper.an.ml.128_134_sp.regn320sc.2023010106_2023010111.nc',
-    #                                 'gdas.t00z.satwnd.tm00.bufr_d_2023010100_superobs_T_tiles_ERA5_t01.nc'
+    #                                 'e5.oper.an.ml.0_5_0_0_0_t.regn320sc.',
+    #                                 'e5.oper.an.ml.128_134_sp.regn320sc.',
+    #                                 'gdas.t00z.satwnd.tm00.bufr_d_2023010100_superobs_T_tiles_ERA5_00.nc'
     #                               ])
     # quality-control inputs:
     # if userInputs.obDataDir does not end in '/', append it
@@ -327,6 +319,25 @@ if __name__ == "__main__":
     tileExt = int(userInputs.tileExt)
     # define anaWindowVals
     anaWindowVals = np.asarray([anaWindowBeg, anaWindowEnd])
+    # compute YYYYMMDDHH_YYYYMMDDHH timestamp for "before" time by rewinding 1-6 hours
+    beforeDateTime1 = anaDateTime - datetime.timedelta(hours=6)
+    beforeDateTime2 = anaDateTime - datetime.timedelta(hours=1)
+    beforeDateTimeStamp = beforeDateTime1.strftime('%Y%m%d%H') + '_' + beforeDateTime2.strftime('%Y%m%d%H')
+    # compute YYYYMMDDHH_YYYYMMDDHH timestamp for "during" time by fast-forwarding 0-5 hours
+    duringDateTime1 = anaDateTime
+    duringDateTime2 = anaDateTime + datetime.timedelta(hours=5)
+    duringDateTimeStamp = duringDateTime1.strftime('%Y%m%d%H') + '_' + duringDateTime2.strftime('%Y%m%d%H')
+    # compute YYYYMMDDHH_YYYYMMDDHH timestamp for "after" time by fast-forwarding 6-11 hours
+    afterDateTime1 = anaDateTime + datetime.timedelta(hours=6)
+    afterDateTime2 = anaDateTime + datetime.timedelta(hours=11)
+    afterDateTimeStamp = afterDateTime1.strftime('%Y%m%d%H') + '_' + afterDateTime2.strftime('%Y%m%d%H')
+    # define "before", "during", and "after" ERA5T and ERA5SP file-names
+    era5TBefore = userInputs.era5TPrefix + beforeDateTimeStamp + '.nc'
+    era5TDuring = userInputs.era5TPrefix + duringDateTimeStamp + '.nc'
+    era5TAfter = userInputs.era5TPrefix + afterDateTimeStamp + '.nc'
+    era5SPBefore = userInputs.era5SPPrefix + beforeDateTimeStamp + '.nc'
+    era5SPDuring = userInputs.era5SPPrefix + duringDateTimeStamp + '.nc'
+    era5SPAfter = userInputs.era5SPPrefix + afterDateTimeStamp + '.nc'
     #
     # ingest and filter superob data
     #
@@ -350,7 +361,7 @@ if __name__ == "__main__":
     #
     t0 = time()
     # pull ERA5 lat, lon, hybrid-sigma parameters from era5TBefore (should be identical for all ERA5 files)
-    hdl=Dataset(era5DataDir + userInputs.era5TBefore)
+    hdl=Dataset(era5DataDir + era5TBefore)
     grdLat = np.asarray(hdl.variables['latitude']).squeeze()   # model grid latitudes (float, deg, descending)
     grdLon = np.asarray(hdl.variables['longitude']).squeeze()  # model grid longitudes (float, deg, 0-360)
     grdAk = np.asarray(hdl.variables['a_model']).squeeze()     # model grid ak values (float, dimensionless)
@@ -371,9 +382,9 @@ if __name__ == "__main__":
                                                    yCoordName="latitude",
                                                    zCoordName="level",
                                                    tCoordName="time",
-                                                   beforeNC4File=era5DataDir + userInputs.era5TBefore,
-                                                   duringNC4File=era5DataDir + userInputs.era5TDuring,
-                                                   afterNC4File=era5DataDir + userInputs.era5TAfter,
+                                                   beforeNC4File=era5DataDir + era5TBefore,
+                                                   duringNC4File=era5DataDir + era5TDuring,
+                                                   afterNC4File=era5DataDir + era5TAfter,
                                                    anaDateTime=anaDateTime,
                                                    tVals=anaWindowVals)
     # assign cubeOut tuple-values to variables
@@ -393,9 +404,9 @@ if __name__ == "__main__":
                                                     xCoordName="longitude",
                                                     yCoordName="latitude",
                                                     tCoordName="time",
-                                                    beforeNC4File=era5DataDir + userInputs.era5SPBefore,
-                                                    duringNC4File=era5DataDir + userInputs.era5SPDuring,
-                                                    afterNC4File=era5DataDir + userInputs.era5SPAfter,
+                                                    beforeNC4File=era5DataDir + era5SPBefore,
+                                                    duringNC4File=era5DataDir + era5SPDuring,
+                                                    afterNC4File=era5DataDir + era5SPAfter,
                                                     anaDateTime=anaDateTime,
                                                     tVals=anaWindowVals)
     # we only need the 3Dcube from this run, skip the coordinate values

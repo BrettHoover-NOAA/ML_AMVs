@@ -20,8 +20,8 @@ import argparse
 def download_ERA5_CISL(dayTimeStamp):
     dayTimeYYYYMM = dayTimeStamp[0:6]
     files = [
-        "e5.oper.an.pl/" + dayTimeYYYYMM + "/e5.oper.an.ml.0_5_0_0_0_t.regn320sc." + dayTimeStamp + ".nc",  # temperature on model-levels
-        "e5.oper.an.pl/" + dayTimeYYYYMM + "/e5.oper.an.ml.128_134_sp.regn320sc." + dayTimeStamp + ".nc"    # surface-pressure
+        "e5.oper.an.ml/" + dayTimeYYYYMM + "/e5.oper.an.ml.0_5_0_0_0_t.regn320sc." + dayTimeStamp + ".nc",  # temperature on model-levels
+        "e5.oper.an.ml/" + dayTimeYYYYMM + "/e5.oper.an.ml.128_134_sp.regn320sc." + dayTimeStamp + ".nc"    # surface-pressure
     ]
     # download the data file(s)
     for file in files:
@@ -56,9 +56,9 @@ if __name__ == "__main__":
     # collect all time-stamps for input files into a list
     # NOTE: all time-stamps are of the form YYYYYMMDDH1_YYYYMMDDH2, may be the same between any or all required datetimes
     timeStampList = []
-    timeStampList.append(beforeDateTime1 + '_' + beforeDateTime2.strftime('%Y'))
-    timeStampList.append(duringDateTime1 + '_' + duringDateTime2.strftime('%Y'))
-    timeStampList.append(afterDateTime1 + '_' + afterDateTime2.strftime('%Y'))
+    timeStampList.append(beforeDateTime1.strftime('%Y%m%d%H') + '_' + beforeDateTime2.strftime('%Y%m%d%H'))
+    timeStampList.append(duringDateTime1.strftime('%Y%m%d%H') + '_' + duringDateTime2.strftime('%Y%m%d%H'))
+    timeStampList.append(afterDateTime1.strftime('%Y%m%d%H') + '_' + afterDateTime2.strftime('%Y%m%d%H'))
     # for each timeStamp in timeStampList, download files from NCAR RDA-CISL
     for timeStamp in timeStampList:
         download_ERA5_CISL(timeStamp)
