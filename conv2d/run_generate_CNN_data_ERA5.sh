@@ -19,14 +19,13 @@ conda env list
 # Execution
 #
 anaDateTime=${1}
-anaWindowBeg=${2}
-anaWindowEnd=${3}
-tileExt=${4}
-obDataDir=${5}
-inFile=${6}
-eraDataDir=${7}
-era5TPrefix=${8}
-era5SPPrefix=${9}
-outFile=${10}
+dataDir=${2}
+subGridExt=${3}
+obFile=${4}
+era5TPrefix=${5}
+era5SPPrefix=${6}
+yamlFile=${7}
+tileName=${8}
+outFile=${9}
 
-python generate_CNN_tiles_ERA5.py "${anaDateTime}" "${anaWindowBeg}" "${anaWindowEnd}" "${tileExt}" "${obDataDir}" "${inFile}" "${eraDataDir}" "${era5TPrefix}" "${era5SPPrefix}" "${outFile}"
+python generate_CNN_data_ERA5.py "${anaDateTime}" "${dataDir}" "${subGridExt}" "${obFile}" "${era5TPrefix}" "${era5SPPrefix}" "${yamlFile}" "${tileName}" "${outFile}"

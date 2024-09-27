@@ -1,0 +1,75 @@
+#! /bin/bash
+# datetime settings
+YYYY=>>YYYY<<
+MM=>>MM<<
+DD=>>DD<<
+HH=>>HH<<
+# tile settings
+nPreBins=>>NPREBINS<<
+minTilePre=>>MINTILEPRE<<
+maxTilePre=>>MAXTILEPRE<<
+haloPre=>>HALOPRE<<
+nTimBins=>>NTIMBINS<<
+minTileTim=>>MINTILETIM<<
+maxTileTim=>>MAXTILETIM<<
+haloTim=>>HALOTIM<<
+optBins=>>OPTBINS<<
+memPerTile=>>MEMPERTILE<<
+# CNN data settings
+subGridExt=>>SUBGRIDEXT<<
+era5TPrefix=>>ERA5TPREFIX<<
+era5SPPrefix=>>ERA5SPPREFIX<<
+
+runDir=`pwd`
+anaDateTime=${YYYY}${MM}${DD}${HH}
+obsDataDir=/scratch1/NCEPDEV/stmp4/Brett.Hoover/ML_AMVs/clustering/testing/${anaDateTime}
+obsFile=gdas.t${HH}z.satwnd.tm00.bufr_d_${anaDateTime}_superobs.nc
+yamlFile=${runDir}/tiles.yaml
+logFile=${1}
+
+# 0) download ERA5 data files
+echo "download ERA files on head node" >> "${logFile}" 2>&1
+./run_download_ERA5.sh ${anaDateTime} >> "${logFile}" 2>&1
+# 1) copy superob data file to local directory
+echo "copy superob file to local directory on head node" >> "${logFile}" 2>&1
+cp ${obsDataDir}/${obsFile} .
+# 2) define tiles
+jName_generate_tiles=generate_tiles.${anaDateTime}
+jid_generate_tiles=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --job-name=${jName_generate_tiles} run_create_tile_yaml.sh ${runDir} ${anaDateTime} ${HH} ${nPreBins} ${minTilePre} ${maxTilePre} ${haloPre} ${nTimBins} ${minTileTim} ${maxTileTim} ${haloTim} ${optBins})
+echo "defining tiles on jid ${jid_generate_tiles}" >> "${logFile}" 2>&1
+# 3) cluster on tiles
+echo "clustering on tiles ..." >> "${logFile}" 2>&1
+#   3a. loop through all Tile_xxx tile-names
+nTiles=$((${nPreBins} * ${nTimBins}))
+n=0
+while [ ${n} -lt ${nTiles} ]
+do
+    n=$((${n} + 1))
+    if [ ${n} -lt 10 ]; then
+        tileName=Tile_00${n}
+    elif [ ${n} -lt 100 ]; then
+        tileName=Tile_0${n}
+    else
+        tileName=Tile_${n}
+    fi
+#   3b. compute CNN 2D data for each observation in tile
+#   3c. write tile to netCDF file
+#   NOTE: memory allocated to single CPU is default 2300M (2.3g), but memPerTile will override   
+    jName_cnn_tiles=cnn_tiles.${anaDateTime}
+    outFile=gdas.t${HH}z.satwnd.tm00.bufr_d_${anaDateTime}_superobs_${tileName}.nc
+    jid_cnn_tiles=$(sbatch --parsable -A da-cpu -N 1 --ntasks=1 --cpus-per-task=1 --mem-per-cpu=${memPerTile} -t 0:30:00 --dependency=afterany:${jid_generate_tiles} --job-name=${jName_cnn_tiles} run_generate_CNN_data_ERA5.sh ${anaDateTime} ${runDir} ${subGridExt} ${obsFile} ${era5TPrefix} ${era5SPPrefix} ${yamlFile} ${tileName} ${outFile})
+    echo "    generating CNN 2D data for ${tileName} on jid ${jid_cnn_tiles}" >> "${logFile}" 2>&1
+done
+# 4) reconcile tiles
+#echo "reconciling tiles" >> "${logFile}" 2>&1
+#   4a. collect all tile+halo data from individual tile netCDF files
+#   4b. reconcile any duplicate observations to assign a single cid and tid value
+#   4c. give each cluster from each tile a unique cid
+#   4d. output to netCDF
+#jName_combine_clusters=${jName_cluster_tiles}  # this is identical to job-name for clustering tiles for use of singleton dependency
+#jid_combine_clusters=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=singleton --job-name=${jName_combine_clusters} run_combine_clusters.sh ${runDir} ${anaDateTime} ${HH} ${nTiles})
+#echo "reconciling tiles on jid ${jid_combine_clusters}" >> "${logFile}" 2>&1
+# 5) compute superobs
+#echo "computing superobs" >> "${logFile}" 2>&1
+#jName_compute_superobs=compute_superobs.${anaDateTime}
+#jid_compute_superobs=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=afterany:${jid_combine_clusters} --job-name=${jName_compute_superobs} run_compute_superobs.sh ${runDir} ${anaDateTime} ${HH})

@@ -4,8 +4,18 @@ YYYY=${1}
 MM=${2}
 DD=${3}
 HH=${4}
+nPreBins=${5}
+minTilePre=${6}
+maxTilePre=${7}
+nTimBins=${8}
+minTileTim=${9}
+maxTileTim=${10}
+optBins=${11}
+
 
 anaDateTime=${YYYY}${MM}${DD}${HH}
+anaHH=${HH}
+
 era5TPrefix="e5.oper.an.ml.0_5_0_0_0_t.regn320sc."
 era5SPPrefix="e5.oper.an.ml.128_134_sp.regn320sc."
 
@@ -17,6 +27,11 @@ currDir=`pwd`
 
 # download ERA5 GRIB files for anaDateTime observation-window (performed on head node, fails in batch submission)
 #./run_download_ERA5.sh ${anaDateTime}  
+
+# generate subsetting-tiles with no halo-region (halo is unnecessary for this task)
+haloPre=0
+haloTim=0 
+
 
 # submit CNN tiling with sub_CNN_tiles.sh for tile 00 (-3 to -2 hrs)
 anaWindowBeg="-3"

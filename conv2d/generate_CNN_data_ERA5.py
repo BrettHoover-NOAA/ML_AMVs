@@ -12,9 +12,75 @@ from scipy.interpolate import interpn
 import datetime
 from os.path import isfile
 from time import time
+import yaml
 import argparse
 #
 # define internal functions
+#
+# parse_yaml: Given a YAML file and a requested tile, parse inputs and return variables
+#
+# INPUTS:
+#    yamlFile: name of YAML file (string)
+#    tileName: name of tile (string, "Tile_N" format)
+#
+# OUTPUTS:
+#    tuple containing all tile data (see below for details)
+#
+# DEPENDENCIES:
+#    yaml
+def parse_yaml(yamlFile, tileName):
+    # YAML entries are nested for each Tile:
+    # Tile_1:
+    #      tileValue: ........................ numerical index of tile (int)
+    #      tilePressureMin: .................. minimum pressure on tile (float, Pa)
+    #      tilePressureMax: .................. maximum pressure on tile (float, Pa)
+    #      tileTimeMin: ...................... minimum time on tile (float, fractional hours)
+    #      tileTimeMax: ...................... maximum time on tile (float, fractional hours)
+    #      haloPressureMin: .................. minimum pressure on halo (float, Pa)
+    #      haloPressureMax: .................. maximum pressure on halo (float, Pa)
+    #      haloTimeMin: ...................... minimum time on halo (float, fractional hours)
+    #      haloTimeMax: ...................... maximum time on halo (float, fractional hours)
+    # Tile_2:
+    #      tileValue:
+    #      ...
+    with open(yamlFile, 'r') as stream:
+        try:
+            parsed_yaml = yaml.safe_load(stream)
+        except yaml.YAMLError as YAMLError:
+            parsed_yaml = None
+            print(f'YAMLError: {YAMLError}')
+        if parsed_yaml is not None:
+            # Select tile
+            try:
+                tileDict = parsed_yaml[tileName]
+            except KeyError as MissingTileError:
+                tileDict = None
+                print(f'MissingTileError: {MissingTileError}')
+            # Extract tile data
+            try:
+                tileValue = tileDict['tileValue']
+                tilePressureMin = tileDict['tilePressureMin']
+                tilePressureMax = tileDict['tilePressureMax']
+                tileTimeMin = tileDict['tileTimeMin']
+                tileTimeMax = tileDict['tileTimeMax']
+                haloPressureMin = tileDict['haloPressureMin']
+                haloPressureMax = tileDict['haloPressureMax']
+                haloTimeMin = tileDict['haloTimeMin']
+                haloTimeMax = tileDict['haloTimeMax']
+            except KeyError as MissingDataError:
+                tileValue = None
+                tilePressureMin = None
+                tilePressureMax = None
+                tileTimeMin = None
+                tileTimeMax = None
+                haloPressureMin = None
+                haloPressureMax = None
+                haloTimeMin = None
+                haloTimeMax = None
+                print(f'MissingDataError: {MissingDataError}')
+    # return tile data
+    return (tileValue, tilePressureMin, tilePressureMax, tileTimeMin, tileTimeMax,
+            haloPressureMin, haloPressureMax, haloTimeMin, haloTimeMax)
 #
 # generate_ERA5_3dCube: append netCDF 2D fields across different times into a single 3D cube
 # INPUTS:
@@ -282,41 +348,30 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='define full-path to data directories and names of ' +
                                                  'netCDF super-ob and ERA5 netCDF files')
     parser.add_argument('anaDateTime', metavar='DTIME', type=str, help='YYYYMMDDHH of analysis')
-    parser.add_argument('anaWindowBeg', metavar='ANAWINDOWBEG', type=str, help='beginning of analysis-window portion to process')
-    parser.add_argument('anaWindowEnd', metavar='ANAWINDOWEND', type=str, help='end of analysis-window portion to process')
-    parser.add_argument('tileExt', metavar='TILEEXT', type=str, help='extension from center gridpoint to define 2D field-tile')
-    parser.add_argument('obDataDir', metavar='OBDATADIR', type=str, help='full path to data directory for super-observations')
+    parser.add_argument('dataDir', metavar='DATADIR', type=str, help='full path to data directory for super-observations and ERA5 data') 
+    parser.add_argument('subGridExt', metavar='SUBGRIDEXT', type=str, help='extension from center gridpoint to define 2D field-subgrid')
     parser.add_argument('obFile', metavar='INFILE', type=str, help='input netCDF superob file')
-    parser.add_argument('era5DataDir', metavar='ERA5DATADIR', type=str, help='full path to data directory for ERA5')
     parser.add_argument('era5TPrefix', metavar='ERA5TPREFIX', type=str, help='file-name prefix for ERA5 T data (prior to timestamps)')
     parser.add_argument('era5SPPrefix', metavar='ERA5SPPREFIX', type=str, help='file-name prefix for ERA5 SP data (prior to timestamps)')
+    parser.add_argument('yamlFile', metavar='YAML', type=str, help='YAML file defining tiles')
+    parser.add_argument('tileName', metavar='TILENAME', type=str, help='name of tile being processed, from tiles.yaml')
     parser.add_argument('outputNetcdfFile', metavar='OUTFILE', type=str, help='output netCDF file (superobs with metadata)')
     # parse arguments
     userInputs = parser.parse_args()
-    #userInputs = parser.parse_args([
-    #                                 '2023010100',
-    #                                 '-3.0',
-    #                                 '-2.0',
-    #                                 '10',
-    #                                 '/Users/bhoover/Desktop/IMSG/PROJECTS/ML_superob',
-    #                                 'gdas.t00z.satwnd.tm00.bufr_d_2023010100_superobs.nc_TEST',
-    #                                 '/Users/bhoover/Desktop/IMSG/PROJECTS/ML_superob',
-    #                                 'e5.oper.an.ml.0_5_0_0_0_t.regn320sc.',
-    #                                 'e5.oper.an.ml.128_134_sp.regn320sc.',
-    #                                 'gdas.t00z.satwnd.tm00.bufr_d_2023010100_superobs_T_tiles_ERA5_00.nc'
-    #                               ])
     # quality-control inputs:
-    # if userInputs.obDataDir does not end in '/', append it
-    obDataDir = userInputs.obDataDir + '/' if userInputs.obDataDir[-1] != '/' else userInputs.obDataDir
-    # if userInputs.era5DataDir does not end in '/', append it
-    era5DataDir = userInputs.era5DataDir + '/' if userInputs.era5DataDir[-1] != '/' else userInputs.era5DataDir
+    # if userInputs.dataDir does not end in '/', append it
+    dataDir = userInputs.dataDir + '/' if userInputs.dataDir[-1] != '/' else userInputs.dataDir
     # define analysis datetime
     anaDateTime = datetime.datetime.strptime(userInputs.anaDateTime, '%Y%m%d%H')
-    # define anaWindowBeg and anaWindowEnd as float-values
-    anaWindowBeg = float(userInputs.anaWindowBeg)
-    anaWindowEnd = float(userInputs.anaWindowEnd)
-    # define tileExt as integer
-    tileExt = int(userInputs.tileExt)
+    # extract tile and halo data from yamlFile
+    (tileValue, tilePresMin, tilePresMax, tileTimeMin, tileTimeMax,
+     haloPresMin, haloPresMax, haloTimeMin, haloTimeMax) = parse_yaml(userInputs.yamlFile,
+                                                                      userInputs.tileName)
+    # define anaWindowBeg and anaWindowEnd as tileTimeMin, tileTimeMax (assert as float, just in case)
+    anaWindowBeg = float(tileTimeMin)
+    anaWindowEnd = float(tileTimeMax)
+    # define subGridExt as integer
+    subGridExt = int(userInputs.subGridExt)
     # define anaWindowVals
     anaWindowVals = np.asarray([anaWindowBeg, anaWindowEnd])
     # compute YYYYMMDDHH_YYYYMMDDHH timestamp for "before" time by rewinding 1-6 hours
@@ -343,13 +398,17 @@ if __name__ == "__main__":
     #
     t0 = time()
     # load superob data: latitude, longitude, pressure, time
-    hdl = Dataset(obDataDir + userInputs.obFile)
+    hdl = Dataset(dataDir + userInputs.obFile)
     lat = np.asarray(hdl.variables['lat']).squeeze()  # latitude (float, deg)
     lon = np.asarray(hdl.variables['lon']).squeeze()  # longitude (float, deg)
     pre = np.asarray(hdl.variables['pre']).squeeze()  # pressure (float, Pa)
     tim = np.asarray(hdl.variables['tim']).squeeze()  # time (float, frac. hrs relative to anaDateTime)
-    # filter observations for those only within anaWindowVals
-    idx = np.where((tim>=np.min(anaWindowVals)) & (tim<np.max(anaWindowVals)))[0]  # contains tim [min, max) of anaWindowVals
+    # filter observations for those only within time and pressure tile
+    idx = np.where((tim>=tileTimeMin) &
+                   (tim<tileTimeMax)  &
+                   (pre>=tilePresMin) &
+                   (pre<tilePresMax)  
+                  )[0]  # contains tim [min, max) and pre [min, max) superobservations on-tile
     lat = lat[idx]
     lon = lon[idx]
     pre = pre[idx]
@@ -361,7 +420,7 @@ if __name__ == "__main__":
     #
     t0 = time()
     # pull ERA5 lat, lon, hybrid-sigma parameters from era5TBefore (should be identical for all ERA5 files)
-    hdl=Dataset(era5DataDir + era5TBefore)
+    hdl=Dataset(dataDir + era5TBefore)
     grdLat = np.asarray(hdl.variables['latitude']).squeeze()   # model grid latitudes (float, deg, descending)
     grdLon = np.asarray(hdl.variables['longitude']).squeeze()  # model grid longitudes (float, deg, 0-360)
     grdAk = np.asarray(hdl.variables['a_model']).squeeze()     # model grid ak values (float, dimensionless)
@@ -377,16 +436,19 @@ if __name__ == "__main__":
     #
     t0 = time()
     # generate 4dcube of temperature data within tVals
+    # because anaWindowVals can be fractional hours, we need to peg tVals to the
+    # full-hour bookends of anaWindowVals
+    tVals = [np.floor(anaWindowVals[0]), np.ceil(anaWindowVals[1])]
     cubeOut = era5_4dcube_T = generate_ERA5_4dCube(varName="T",
                                                    xCoordName="longitude",
                                                    yCoordName="latitude",
                                                    zCoordName="level",
                                                    tCoordName="time",
-                                                   beforeNC4File=era5DataDir + era5TBefore,
-                                                   duringNC4File=era5DataDir + era5TDuring,
-                                                   afterNC4File=era5DataDir + era5TAfter,
+                                                   beforeNC4File=dataDir + era5TBefore,
+                                                   duringNC4File=dataDir + era5TDuring,
+                                                   afterNC4File=dataDir + era5TAfter,
                                                    anaDateTime=anaDateTime,
-                                                   tVals=anaWindowVals)
+                                                   tVals=tVals)
     # assign cubeOut tuple-values to variables
     zCoord = cubeOut[0]
     yCoord = cubeOut[1]
@@ -404,22 +466,22 @@ if __name__ == "__main__":
                                                     xCoordName="longitude",
                                                     yCoordName="latitude",
                                                     tCoordName="time",
-                                                    beforeNC4File=era5DataDir + era5SPBefore,
-                                                    duringNC4File=era5DataDir + era5SPDuring,
-                                                    afterNC4File=era5DataDir + era5SPAfter,
+                                                    beforeNC4File=dataDir + era5SPBefore,
+                                                    duringNC4File=dataDir + era5SPDuring,
+                                                    afterNC4File=dataDir + era5SPAfter,
                                                     anaDateTime=anaDateTime,
-                                                    tVals=anaWindowVals)
+                                                    tVals=tVals)
     # we only need the 3Dcube from this run, skip the coordinate values
     cube3d_SP = cubeOut[3]
     t1 = time()
     print('generated 3d model SP data cube in {:.2f} seconds'.format(t1-t0))
     #
-    # extend model data-cubes in longitude dimension by tileExt+1
+    # extend model data-cubes in longitude dimension by subGridExt+1
     #
     t0 = time()
     # make duplicative columns on edges of grids along longitude dimension
-    cube3d_SP_dup, xCoord_dup = duplicate_periodic_dimension_points(cube3d_SP, 1, xCoord, numDup=tileExt+1)
-    cube4d_T_dup, xCoord_dup = duplicate_periodic_dimension_points(cube4d_T, 2, xCoord, numDup=tileExt+1)
+    cube3d_SP_dup, xCoord_dup = duplicate_periodic_dimension_points(cube3d_SP, 1, xCoord, numDup=subGridExt+1)
+    cube4d_T_dup, xCoord_dup = duplicate_periodic_dimension_points(cube4d_T, 2, xCoord, numDup=subGridExt+1)
     # grdLat is north-to-south convention, reverse this for coordinate and data
     cube3d_SP_dup = np.flip(cube3d_SP_dup, axis=0)
     cube4d_T_dup = np.flip(cube4d_T_dup, axis=1)
@@ -455,19 +517,20 @@ if __name__ == "__main__":
     t1 = time()
     print('generated model-sigma ob vectors in {:.2f} seconds'.format(t1-t0))
     #
-    # compute 2D model T tiles centered on each superob
+    # compute 2D model T subgrids centered on each superob
     #
     allIdx = np.arange(np.size(lat))         # all obs
-    yesIdx = np.where(np.abs(lat)<86.5)[0]   # obs within +/- 86.5 deg latitude (more poleward == not enough data for full tile)
+    yesIdx = np.where(np.abs(lat)<86.5)[0]   # obs within +/- 86.5 deg latitude (more poleward == not enough data for full subgrid)
     noIdx = np.setdiff1d(allIdx, yesIdx)     # obs poleward of +/- 86.5 deg latitude
     obIdx = list(allIdx)                     # obs selected for processing among all obs
     yi = list(np.intersect1d(obIdx,yesIdx))  # selected obs within +/- 86.5 deg latitude
     ni = list(np.intersect1d(obIdx,noIdx))   # selected obs poleward of +/- 86.5 deg latitude
-    # create a 3D tile array with a time-dimension to store 2D tiles at each time-level of anaWindowVals
-    grdT_tile3D = np.zeros((np.size(obIdx), 2*tileExt+1, 2*tileExt+1, np.size(tCoord)))
+    print('{:d} total obs, {:d} obs available for processing, {:d} obs provided dummy subgrids'.format(np.size(allIdx), np.size(yesIdx), np.size(noIdx)))
+    # create a 3D subgrid array with a time-dimension to store 2D subGrid at each time-level of anaWindowVals
+    grdT_subGrid3D = np.zeros((np.size(obIdx), 2*subGridExt+1, 2*subGridExt+1, np.size(tCoord)))
     # create model lat/lon meshgrids on extended-map
     grdLonMesh, grdLatMesh = np.meshgrid(xCoord_dup,yCoord)
-    # for each time-level, construct a tile at the nearest model-level centered on the observation
+    # for each time-level, construct a subgrid at the nearest model-level centered on the observation
     t0 = time()
     Nji = np.asarray([np.unravel_index(np.argmin((grdLatMesh-lat[i])**2. + (grdLonMesh-lonFix[i])**2.),
                                                   shape=np.shape(grdLatMesh)) for i in obIdx])
@@ -478,9 +541,9 @@ if __name__ == "__main__":
         Nk = np.asarray([np.argmin((cube4d_Sig_dup[:,Nji[obIdx.index(i)][0],Nji[obIdx.index(i)][1],t].squeeze()-sig[i])**2.) for i in obIdx])
         Njiy = Nji[np.where(np.isin(obIdx,yi)),:].squeeze()
         Nky = Nk[np.where(np.isin(obIdx,yi))].squeeze()
-        grdT_tile3D[np.where(np.isin(obIdx,yi)),:,:,t] = np.asarray([cube4d_T_dup[Nky[yi.index(i)],Njiy[yi.index(i)][0]-tileExt:Njiy[yi.index(i)][0]+tileExt+1,Njiy[yi.index(i)][1]-tileExt:Njiy[yi.index(i)][1]+tileExt+1,t].squeeze() for i in yi])
+        grdT_subGrid3D[np.where(np.isin(obIdx,yi)),:,:,t] = np.asarray([cube4d_T_dup[Nky[yi.index(i)],Njiy[yi.index(i)][0]-subGridExt:Njiy[yi.index(i)][0]+subGridExt+1,Njiy[yi.index(i)][1]-subGridExt:Njiy[yi.index(i)][1]+subGridExt+1,t].squeeze() for i in yi])
         t1 = time()
-        print('processing tiles on time-level {:d} completed in {:.2f} seconds'.format(t,t1-t0))
+        print('processing subgrids on time-level {:d} completed in {:.2f} seconds'.format(t,t1-t0))
     t0 = time()
         # define time-weighting coefficients manually:
     #
@@ -495,12 +558,12 @@ if __name__ == "__main__":
     delt = tCoord[1] - tCoord[0]
     w1 = delt2/delt
     w2 = delt1/delt
-    # construct a single 2D tile for each observation that is linearly interpolated between time-levels
-    grdT_tile2D = w1[:,None,None] * grdT_tile3D[:,:,:,0] + w2[:,None,None] * grdT_tile3D[:,:,:,1]
+    # construct a single 2D subgrid for each observation that is linearly interpolated between time-levels
+    grdT_subGrid2D = w1[:,None,None] * grdT_subGrid3D[:,:,:,0] + w2[:,None,None] * grdT_subGrid3D[:,:,:,1]
     t1 = time()
-    print('generated 2d model T tiles in {:.2f} seconds'.format(t1-t0))
-    # write labels to output file
-    ncOutFileName = obDataDir + userInputs.outputNetcdfFile
+    print('generated 2d model T subgrids in {:.2f} seconds'.format(t1-t0))
+    # write 2D subgrids to output file
+    ncOutFileName = dataDir + userInputs.outputNetcdfFile
     ncOut = Dataset( 
                       ncOutFileName  , # Dataset input: Output file name
                       'w'              , # Dataset input: Make file write-able
@@ -550,23 +613,26 @@ if __name__ == "__main__":
     ncOut.analysisDateTime = userInputs.anaDateTime
     ncOut.sourceFile = userInputs.obFile
     # fill netCDF file variables with labels
-    T[:,:,:]      = grdT_tile2D  # 2D tile of field
+    T[:,:,:]      = grdT_subGrid2D  # 2D subgrid of field
     xi[:]         = idx[obIdx]  # index of observations in full superob file
     # provide filler dummy values to lonVec and latVec for all obs in ni, real values for all obs in yi
-    latyi = np.asarray([yCoord[Nji[i][0]-tileExt:Nji[i][0]+tileExt+1] for i in yi]).squeeze()
-    latni = np.asarray([np.nan*np.ones((2*tileExt+1)) for i in ni]).squeeze()
-    lonyi = np.asarray([xCoord_dup[Nji[i][1]-tileExt:Nji[i][1]+tileExt+1] for i in yi]).squeeze()
-    lonni = np.asarray([np.nan*np.ones((2*tileExt+1)) for i in ni]).squeeze()
+    latyi = np.asarray([yCoord[Nji[i][0]-subGridExt:Nji[i][0]+subGridExt+1] for i in yi]).squeeze()
+    latni = np.asarray([np.nan*np.ones((2*subGridExt+1)) for i in ni]).squeeze()
+    lonyi = np.asarray([xCoord_dup[Nji[i][1]-subGridExt:Nji[i][1]+subGridExt+1] for i in yi]).squeeze()
+    lonni = np.asarray([np.nan*np.ones((2*subGridExt+1)) for i in ni]).squeeze()
     # generate whole *Vec as zero-array and fill with *yi and *ni values
-    latV = np.zeros((len(yi)+len(ni),2*tileExt+1))
-    lonV = np.zeros((len(yi)+len(ni),2*tileExt+1))
-    latV[yi,:] = latyi
-    latV[ni,:] = latni
-    lonV[yi,:] = lonyi
-    lonV[ni,:] = lonni
+    latV = np.zeros((len(yi)+len(ni),2*subGridExt+1))
+    lonV = np.zeros((len(yi)+len(ni),2*subGridExt+1))
+    # catch possibility of yi or ni being size-0 here
+    if (len(yi) > 0):
+        latV[yi,:] = latyi
+        lonV[yi,:] = lonyi
+    if (len(ni) > 0):
+        latV[ni,:] = latni
+        lonV[ni,:] = lonni
     # fill latVec and lonVec
-    latVec[:,:] = latV  # latitude along y-dimension of tile
-    lonVec[:,:] = lonV  # longitude along x-dimension of tile
+    latVec[:,:] = latV  # latitude along y-dimension of subgrid
+    lonVec[:,:] = lonV  # longitude along x-dimension of subgrid
     # close ncOut
     ncOut.close()
 #
