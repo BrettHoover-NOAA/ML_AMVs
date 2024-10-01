@@ -585,22 +585,22 @@ if __name__ == "__main__":
     # add variables
     T = ncOut.createVariable(
                                   'T'       ,
-                                  'f8'        ,
+                                  'f4'        ,
                                   ('ob', 'y', 'x')
                             )
     xi = ncOut.createVariable(
                                   'idx'     ,
-                                  'i8'        ,
+                                  'i4'        ,
                                   ('ob')
                              )
     latVec = ncOut.createVariable(
                                    'lat'     ,
-                                   'f8'        ,
+                                   'f4'        ,
                                    ('ob', 'y')
                                  )
     lonVec = ncOut.createVariable(
                                    'lon'     ,
-                                   'f8'        ,
+                                   'f4'        ,
                                    ('ob', 'x')
                                  )
     # assign netCDF file attributes

@@ -30,7 +30,7 @@ def download_ERA5_CISL(dayTimeStamp):
             ofile = file[idx+1:]
         else:
             ofile = file
-        response = requests.get("https://data.rda.ucar.edu/ds633.6/" + file)
+        response = requests.get("https://data.rda.ucar.edu/d633006/" + file)
         with open(ofile, "wb") as f:
             f.write(response.content)
 #
