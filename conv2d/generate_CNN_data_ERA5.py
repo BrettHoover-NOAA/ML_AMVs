@@ -593,16 +593,17 @@ if __name__ == "__main__":
                                   'i4'        ,
                                   ('ob')
                              )
-    latVec = ncOut.createVariable(
-                                   'lat'     ,
-                                   'f4'        ,
-                                   ('ob', 'y')
-                                 )
-    lonVec = ncOut.createVariable(
-                                   'lon'     ,
-                                   'f4'        ,
-                                   ('ob', 'x')
-                                 )
+    # you can turn these on if you need to verify subgrids are in the right places
+    #latVec = ncOut.createVariable(
+    #                               'lat'     ,
+    #                               'f4'        ,
+    #                               ('ob', 'y')
+    #                             )
+    #lonVec = ncOut.createVariable(
+    #                               'lon'     ,
+    #                               'f4'        ,
+    #                               ('ob', 'x')
+    #                             )
     # assign netCDF file attributes
     ncOut.labelSource = ("ERA5 hourly data on native model levels 1940 to present, reanalysis temperature and surface pressure on 0.25 " + 
                          "degree global grids on 128 model levels, via NCAR RDA " + 
@@ -631,8 +632,9 @@ if __name__ == "__main__":
         latV[ni,:] = latni
         lonV[ni,:] = lonni
     # fill latVec and lonVec
-    latVec[:,:] = latV  # latitude along y-dimension of subgrid
-    lonVec[:,:] = lonV  # longitude along x-dimension of subgrid
+    # turn these two lines on if you want to make sure subgrids are in the right places
+    #latVec[:,:] = latV  # latitude along y-dimension of subgrid
+    #lonVec[:,:] = lonV  # longitude along x-dimension of subgrid
     # close ncOut
     ncOut.close()
 #
