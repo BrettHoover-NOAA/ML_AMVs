@@ -60,16 +60,14 @@ do
     jid_cnn_tiles=$(sbatch --parsable -A da-cpu -N 1 --ntasks=1 --cpus-per-task=1 --mem-per-cpu=${memPerTile} -t 0:30:00 --dependency=afterany:${jid_generate_tiles} --job-name=${jName_cnn_tiles} run_generate_CNN_data_ERA5.sh ${anaDateTime} ${runDir} ${subGridExt} ${obsFile} ${era5TPrefix} ${era5SPPrefix} ${yamlFile} ${tileName} ${outFile})
     echo "    generating CNN 2D data for ${tileName} on jid ${jid_cnn_tiles}" >> "${logFile}" 2>&1
 done
-# 4) reconcile tiles
-#echo "reconciling tiles" >> "${logFile}" 2>&1
-#   4a. collect all tile+halo data from individual tile netCDF files
-#   4b. reconcile any duplicate observations to assign a single cid and tid value
-#   4c. give each cluster from each tile a unique cid
+# 4) combine tiles
+echo "combining tiles" >> "${logFile}" 2>&1
+#   4a. collect all tile data from individual tile netCDF files
+#   4b. organize into master array of CNN data in proper ob-dimension order
 #   4d. output to netCDF
-#jName_combine_clusters=${jName_cluster_tiles}  # this is identical to job-name for clustering tiles for use of singleton dependency
-#jid_combine_clusters=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=singleton --job-name=${jName_combine_clusters} run_combine_clusters.sh ${runDir} ${anaDateTime} ${HH} ${nTiles})
-#echo "reconciling tiles on jid ${jid_combine_clusters}" >> "${logFile}" 2>&1
-# 5) compute superobs
-#echo "computing superobs" >> "${logFile}" 2>&1
-#jName_compute_superobs=compute_superobs.${anaDateTime}
-#jid_compute_superobs=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=afterany:${jid_combine_clusters} --job-name=${jName_compute_superobs} run_compute_superobs.sh ${runDir} ${anaDateTime} ${HH})
+searchString=gdas.t${HH}z.satwnd.tm00.bufr_d_${anaDateTime}_superobs_Tile_
+outFile=gdas.t${HH}z.satwnd.tm00.bufr_d_${anaDateTime}_superobs_CNN_T.nc
+jName_combine_cnn_tiles=${jName_cnn_tiles}  # this is identical to job-name for creating tiles for use of singleton dependency
+jid_combine_cnn_tiles=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=singleton --job-name=${jName_combine_cnn_tiles} run_combine_CNN_tiles.sh ${runDir} ${searchString} ${outFile} ${nTiles} ${anaDateTime} ${HH})
+echo "combining tiles on jid ${jid_combine_cnn_tiles}" >> "${logFile}" 2>&1
+

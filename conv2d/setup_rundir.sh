@@ -101,13 +101,38 @@ else
         echo "ERROR source file:${srcFile} does not exist, exiting"
         exit 2006
     fi
+    # run_combine_CNN_tiles.sh: combines CNN temperature data from pressure-time tiles into a single
+    #                           and properly ob-ordered file
+    srcFile=${repoDir}/run_combine_CNN_tiles.sh
+    if [ -e "${srcFile}" ]; then
+        cp "${srcFile}" ${runDir}/.
+    else
+        echo "ERROR source file:${srcFile} does not exist, exiting"
+        exit 2007
+    fi
+    # combine_CNN_tiles.py: performs tasks for run_combine_CNN_tiles.sh
+    srcFile=${repoDir}/combine_CNN_tiles.py
+    if [ -e "${srcFile}" ]; then
+        cp "${srcFile}" ${runDir}/.
+    else
+        echo "ERROR source file:${srcFile} does not exist, exiting"
+        exit 2008
+    fi
+    # cleanup_rundir.sh: performs cleanup tasks for run_combine_CNN_tiles.sh after completion
+    srcFile=${repoDir}/cleanup_rundir.sh
+    if [ -e "${srcFile}" ]; then
+        cp "${srcFile}" ${runDir}/.
+    else
+        echo "ERROR source file:${srcFile} does not exist, exiting"
+        exit 2009
+    fi
     # sub_CNN_data.sh: submits CNN data production tasks to batch queue
     srcFile=${repoDir}/sub_CNN_data.sh
     if [ -e "${srcFile}" ]; then
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2007
+        exit 2010
     fi
     # run_CNN_data.sh: handles running run-scripts in proper order
     srcFile=${repoDir}/run_CNN_data.sh
@@ -115,7 +140,7 @@ else
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2008
+        exit 2011
     fi
 fi
 

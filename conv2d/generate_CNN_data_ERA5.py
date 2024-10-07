@@ -508,19 +508,32 @@ if __name__ == "__main__":
     lonFix = lon.copy()
     fix = np.where(lonFix<0.)
     lonFix[fix] = lonFix[fix] + 360.
-    Psbk = interpn(dims3dCube, cube3d_SP_dup, np.asarray([lat, lonFix, tim]).T)
+    # filter out obs that exist outside of dims3dCube bounds: these can include observations that are directly
+    # on the border of the cube (such as observations right at the maximum/minimum yCoord values) that will
+    # cause interpn() to fail. This *shouldn't* happen for xCoord_dup or tCoord boundaries based on design, but
+    # we will scan for them anyway
+    #
+    # filtered out observations will be reintroduced as observations in the noIdx group below (not assigned a
+    # CNN subgrid)
+    inCube = np.where((lat < np.max(yCoord)) & (lat > np.min(yCoord)) &
+                      (lonFix < np.max(xCoord_dup)) & (lonFix > np.min(xCoord_dup)) &
+                      (tim < np.max(tCoord)) & (tim > np.min(tCoord)))[0]
+    print('{:d} observations screened out for being out of cube-range'.format(np.size(lat)-np.size(inCube)))
+    Psbk = np.nan * np.ones(np.size(lat))
+    Psbk[inCube] = interpn(dims3dCube, cube3d_SP_dup, np.asarray([lat[inCube], lonFix[inCube], tim[inCube]]).T)  # outCube Psbk is NaN
     # map ob pressure values to model sigma values
     sigPre = grdAk + Psbk[:,None]*grdBk[None,:]
     sigVal = grdAk[None,:]/Psbk[:,None] + grdBk
     # perform 1D interpolation to find sigma-value at ob pressure value for each ob
-    sig = np.asarray([np.interp(pre[i],sigPre[i,:], sigVal[i,:]) for i in range(len(pre))]).squeeze()
+    sig = np.nan * np.ones(np.size(lat))
+    sig[inCube] = np.asarray([np.interp(pre[i],sigPre[i,:], sigVal[i,:]) for i in inCube]).squeeze()  # outCube sig is NaN
     t1 = time()
     print('generated model-sigma ob vectors in {:.2f} seconds'.format(t1-t0))
     #
     # compute 2D model T subgrids centered on each superob
     #
     allIdx = np.arange(np.size(lat))         # all obs
-    yesIdx = np.where(np.abs(lat)<86.5)[0]   # obs within +/- 86.5 deg latitude (more poleward == not enough data for full subgrid)
+    yesIdx = np.intersect1d(inCube, np.where(np.abs(lat)<86.5)[0])   # obs in inCube and also within +/- 86.5 deg latitude (more poleward == not enough data for full subgrid)
     noIdx = np.setdiff1d(allIdx, yesIdx)     # obs poleward of +/- 86.5 deg latitude
     obIdx = list(allIdx)                     # obs selected for processing among all obs
     yi = list(np.intersect1d(obIdx,yesIdx))  # selected obs within +/- 86.5 deg latitude
