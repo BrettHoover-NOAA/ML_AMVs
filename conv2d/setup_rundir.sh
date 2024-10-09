@@ -169,6 +169,6 @@ sed -i "s/>>ERA5SPPREFIX<</${era5SPPrefix}/g" ${runDir}/sub_CNN_data.sh
 chmod 700 ${runDir}/sub_CNN_data.sh
 # move to runDir and run sub_CNN_data.sh, passing full-path to log-file
 cd ${runDir}
-#./sub_CNN_data.sh ${currDir}/log.${anaDateTime}
+./sub_CNN_data.sh ${currDir}/log.${anaDateTime}
 cd -
 
