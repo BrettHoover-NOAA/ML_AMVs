@@ -28,8 +28,7 @@ anaHH=${6}
 python combine_CNN_tiles.py "${dataDir}" "${searchString}" "${outFile}" "${numTiles}"
 
 # after completion of python program, run cleanup_rundir.sh to tidy workspace
-# IF outFile was produced, and gzip the outFile
+# IF outFile was produced
 if [ -e "${outFile}" ]; then
     ./cleanup_rundir.sh ${dataDir} ${anaDateTime} ${anaHH}
-    gzip ${outFile}
 fi
