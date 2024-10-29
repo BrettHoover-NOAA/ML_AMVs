@@ -54,13 +54,21 @@ else
         echo "ERROR source file:${srcFile} does not exist, exiting"
         exit 2003
     fi
-    # download_ERA5_CISL.py: performs tasks for run_download_ERA5.sh (NCAR RDA-CISL source)
-    srcFile=${repoDir}/download_ERA5_CISL.py
+    # download_ERA5_CISL_grib.py: performs tasks for run_download_ERA5.sh (NCAR RDA-CISL GRIB source)
+    srcFile=${repoDir}/download_ERA5_CISL_grib.py
     if [ -e "${srcFile}" ]; then
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
         exit 2004
+    fi
+    # download_ERA5_CISL_nc4.py: performs tasks for run_download_ERA5.sh (NCAR RDA-CISL NC4 source)
+    srcFile=${repoDir}/download_ERA5_CISL_nc4.py
+    if [ -e "${srcFile}" ]; then
+        cp "${srcFile}" ${runDir}/.
+    else
+        echo "ERROR source file:${srcFile} does not exist, exiting"
+        exit 2005
     fi
     # run_label_superobs.sh: computes u- and v-component labels for input winds
     srcFile=${repoDir}/run_label_superobs.sh
@@ -68,7 +76,7 @@ else
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2005
+        exit 2006
     fi
     # label_superobs_ERA5.py: performs tasks for run_label_superobs.sh using ERA5 data
     srcFile=${repoDir}/label_superobs_ERA5.py
@@ -76,15 +84,23 @@ else
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2006
+        exit 2007
     fi
-    # label_superobs_ERA5_CISL.py: performs tasks for run_label_superobs.sh using ERA5 data (NCAR RDA-CISL source)
-    srcFile=${repoDir}/label_superobs_ERA5_CISL.py
+    # label_superobs_ERA5_CISL_grib.py: performs tasks for run_label_superobs.sh using ERA5 data (NCAR RDA-CISL GRIB source)
+    srcFile=${repoDir}/label_superobs_ERA5_CISL_grib.py
     if [ -e "${srcFile}" ]; then
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2007
+        exit 2008
+    fi
+    # label_superobs_ERA5_CISL_nc4.py: performs tasks for run_label_superobs.sh using ERA5 data (NCAR RDA-CISL NC4 source)
+    srcFile=${repoDir}/label_superobs_ERA5_CISL_nc4.py
+    if [ -e "${srcFile}" ]; then
+        cp "${srcFile}" ${runDir}/.
+    else
+        echo "ERROR source file:${srcFile} does not exist, exiting"
+        exit 2008
     fi
     # sub_label.sh: submits labeling tasks to batch queue
     srcFile=${repoDir}/sub_label.sh
@@ -92,7 +108,7 @@ else
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2008
+        exit 2009
     fi
     # run_labeling.sh: handles running run-scripts in proper order
     srcFile=${repoDir}/run_labeling.sh
@@ -100,7 +116,7 @@ else
         cp "${srcFile}" ${runDir}/.
     else
         echo "ERROR source file:${srcFile} does not exist, exiting"
-        exit 2009
+        exit 2010
     fi
 fi
 # move to runDir
