@@ -3,6 +3,48 @@ from netCDF4 import Dataset as ncDataset
 import torch
 from torch.utils.data import Dataset, DataLoader
 import glob
+import gzip
+import subprocess
+
+# CNNDataset: Dataset class for CNN tensors
+#
+# To use:
+# > import numpy as np
+# > from netCDF4 import Dataset as ncDataset
+# > import torch
+# > from torch.utils.data import Dataset, DataLoader
+# > import glob
+# >
+# > cnnDataset = CNNDataset(dataDir="/path/to/data/directory/")
+# > cnnLoader = DataLoader(cnnDataset, batch_size=None, shuffle=False, num_workers=0)
+class CNNDataset(Dataset):
+    def __init__(self, dataDir):
+        self.nc4_path = dataDir + "/" if dataDir[-1] != "/" else dataDir
+        date_list = glob.glob(self.nc4_path + "*")
+        self.data = []
+        for date_path in date_list:
+            date_name = date_path.split("/")[-1]
+            for gz_path in glob.glob(date_path + "/*_superobs_CNN_T.nc.gz"):  # files presumed in compressed *.nc.gz format
+                self.data.append([gz_path, date_name])
+        print(len(self.data), " files of ", len(date_list), " directories loaded")
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+        gz_path, class_name = self.data[idx]
+        # presume nc4 CNN file is gzip compressed, use gzip to uncompress and access data
+        print('decompressing CNN file:')
+        subprocess.run('gunzip ' + gz_path, shell=True)
+        # nc4_path is identical to gz_path with last three characters (.gz) ommitted
+        nc4_path = gz_path[:-3]
+        # extract CNN subgrids 
+        cnnTMP_nc = np.asarray(ncDataset(nc4_path).variables['CNN']).squeeze()
+        # generate tensors from numpy arrays (presumed to be temperature subgrids)
+        cnnTMPTen = torch.from_numpy(cnnTMP_nc)
+        # compress nc4 file after use
+        print('recompressing CNN file:')
+        subprocess.run('gzip ' + nc4_path, shell=True)
+        return cnnTMPTen 
+
 
 # SuperobDataset: Dataset class for superob tensors
 #
@@ -37,11 +79,14 @@ class SuperobDataset(Dataset):
         vwd_nc = np.asarray(ncDataset(nc4_path).variables['vwd']).squeeze()
         nob_nc = np.asarray(ncDataset(nc4_path).variables['nob']).squeeze()
         nty_nc = np.asarray(ncDataset(nc4_path).variables['nty']).squeeze()
+        nid_nc = np.asarray(ncDataset(nc4_path).variables['nid']).squeeze()
+        qim_nc = np.asarray(ncDataset(nc4_path).variables['qim']).squeeze()
         uvr_nc = np.asarray(ncDataset(nc4_path).variables['uvr']).squeeze()
         vvr_nc = np.asarray(ncDataset(nc4_path).variables['vvr']).squeeze()
         pvr_nc = np.asarray(ncDataset(nc4_path).variables['pvr']).squeeze()
         tvr_nc = np.asarray(ncDataset(nc4_path).variables['tvr']).squeeze()
         dvr_nc = np.asarray(ncDataset(nc4_path).variables['dvr']).squeeze()
+        qvr_nc = np.asarray(ncDataset(nc4_path).variables['qvr']).squeeze()
         typ_nc = np.asarray(ncDataset(nc4_path).variables['typ']).squeeze()
         typeValues_nc = np.asarray(ncDataset(nc4_path).variables['typeValues']).squeeze()
         # unpack binary typ and convert to array of 1/0 values
@@ -143,11 +188,14 @@ class SuperobDataset(Dataset):
         vwdTen = torch.from_numpy(vwd_nc)
         nobTen = torch.from_numpy(nob_nc)
         ntyTen = torch.from_numpy(nty_nc)
+        nidTen = torch.from_numpy(nid_nc)
+        qimTen = torch.from_numpy(qim_nc)
         uvrTen = torch.from_numpy(uvr_nc)
         vvrTen = torch.from_numpy(vvr_nc)
         pvrTen = torch.from_numpy(pvr_nc)
         tvrTen = torch.from_numpy(tvr_nc)
         dvrTen = torch.from_numpy(dvr_nc)
+        qvrTen = torch.from_numpy(qvr_nc)        
         has_240Ten = torch.from_numpy(has_240)
         has_241Ten = torch.from_numpy(has_241)
         has_242Ten = torch.from_numpy(has_242)
@@ -169,7 +217,7 @@ class SuperobDataset(Dataset):
         has_258Ten = torch.from_numpy(has_258)
         has_259Ten = torch.from_numpy(has_259)
         has_260Ten = torch.from_numpy(has_260)
-        return (latTen, lonTen, preTen, timTen, uwdTen, vwdTen, nobTen, ntyTen, uvrTen, vvrTen, pvrTen, tvrTen, dvrTen,
+        return (latTen, lonTen, preTen, timTen, uwdTen, vwdTen, nobTen, ntyTen, nidTen, qimTen, uvrTen, vvrTen, pvrTen, tvrTen, dvrTen, qvrTen,
                 has_240Ten, has_241Ten, has_242Ten, has_243Ten, has_244Ten, has_245Ten, has_246Ten, has_247Ten, has_248Ten, has_249Ten,
                 has_250Ten, has_251Ten, has_252Ten, has_253Ten, has_254Ten, has_255Ten, has_256Ten, has_257Ten, has_258Ten, has_259Ten,
                 has_260Ten)
