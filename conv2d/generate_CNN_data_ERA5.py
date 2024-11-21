@@ -355,7 +355,7 @@ if __name__ == "__main__":
     parser.add_argument('era5SPPrefix', metavar='ERA5SPPREFIX', type=str, help='file-name prefix for ERA5 SP data (prior to timestamps)')
     parser.add_argument('yamlFile', metavar='YAML', type=str, help='YAML file defining tiles')
     parser.add_argument('tileName', metavar='TILENAME', type=str, help='name of tile being processed, from tiles.yaml')
-    parser.add_argument('outputNetcdfFile', metavar='OUTFILE', type=str, help='output netCDF file (superobs with metadata)')
+    parser.add_argument('outputNetcdfFile', metavar='OUTFILE', type=str, help='output netCDF file (superob subgrids of 2D CNN fields)')
     # parse arguments
     userInputs = parser.parse_args()
     # quality-control inputs:

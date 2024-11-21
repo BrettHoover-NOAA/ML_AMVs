@@ -5,6 +5,7 @@ import numpy as np
 from netCDF4 import Dataset
 from glob import glob
 import argparse
+import subprocess
 #
 # begin
 #
@@ -107,6 +108,8 @@ if __name__ == "__main__":
     # /uncomment
     # close netCDF file
     ncOut.close()
+    # perform gzip compression on netCDF file prior to exit
+    subprocess.run('gzip ' + ncOutFileName, shell=True)
 #
 # end
 #

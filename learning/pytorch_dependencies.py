@@ -3,8 +3,6 @@ from netCDF4 import Dataset as ncDataset
 import torch
 from torch.utils.data import Dataset, DataLoader
 import glob
-import gzip
-import subprocess
 
 # CNNDataset: Dataset class for CNN tensors
 #
@@ -24,25 +22,18 @@ class CNNDataset(Dataset):
         self.data = []
         for date_path in date_list:
             date_name = date_path.split("/")[-1]
-            for gz_path in glob.glob(date_path + "/*_superobs_CNN_T.nc.gz"):  # files presumed in compressed *.nc.gz format
-                self.data.append([gz_path, date_name])
+            for npy_path in glob.glob(date_path + "/*_superobs_CNN_T.npy"):  # files presumed in *.npy format
+                self.data.append([npy_path, date_name])
         print(len(self.data), " files of ", len(date_list), " directories loaded")
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
-        gz_path, class_name = self.data[idx]
-        # presume nc4 CNN file is gzip compressed, use gzip to uncompress and access data
-        print('decompressing CNN file:')
-        subprocess.run('gunzip ' + gz_path, shell=True)
-        # nc4_path is identical to gz_path with last three characters (.gz) ommitted
-        nc4_path = gz_path[:-3]
+        npy_path, class_name = self.data[idx]
+        # presume CNN file is in *.npy format, use np.load to access data
         # extract CNN subgrids 
-        cnnTMP_nc = np.asarray(ncDataset(nc4_path).variables['CNN']).squeeze()
+        cnnTMP_np = np.load(npy_path)
         # generate tensors from numpy arrays (presumed to be temperature subgrids)
-        cnnTMPTen = torch.from_numpy(cnnTMP_nc)
-        # compress nc4 file after use
-        print('recompressing CNN file:')
-        subprocess.run('gzip ' + nc4_path, shell=True)
+        cnnTMPTen = torch.from_numpy(cnnTMP_np)
         return cnnTMPTen 
 
 

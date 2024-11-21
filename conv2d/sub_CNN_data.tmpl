@@ -68,6 +68,6 @@ echo "combining tiles" >> "${logFile}" 2>&1
 searchString=gdas.t${HH}z.satwnd.tm00.bufr_d_${anaDateTime}_superobs_Tile_
 outFile=gdas.t${HH}z.satwnd.tm00.bufr_d_${anaDateTime}_superobs_CNN_T.nc
 jName_combine_cnn_tiles=${jName_cnn_tiles}  # this is identical to job-name for creating tiles for use of singleton dependency
-jid_combine_cnn_tiles=$(sbatch --parsable -A da-cpu -N 1 -t 0:10:00 --dependency=singleton --job-name=${jName_combine_cnn_tiles} run_combine_CNN_tiles.sh ${runDir} ${searchString} ${outFile} ${nTiles} ${anaDateTime} ${HH})
+jid_combine_cnn_tiles=$(sbatch --parsable -A da-cpu -N 1 -t 0:30:00 --dependency=singleton --job-name=${jName_combine_cnn_tiles} run_combine_CNN_tiles.sh ${runDir} ${searchString} ${outFile} ${nTiles} ${anaDateTime} ${HH})
 echo "combining tiles on jid ${jid_combine_cnn_tiles}" >> "${logFile}" 2>&1
 
