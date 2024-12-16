@@ -4,6 +4,28 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import glob
 
+# standardize_CNN_subgrids: given a tensor of CNN subgrids (nobs,ny,nx), standardizes each subgrid along nobs-axis
+#                           by subtracting mean and dividing by standard deviation on (ny,nx) grid and returns
+#                           standardized tensor
+#
+# INPUTS:
+#   rawC: the "raw" (unstandardized) CNN subgrids in (nobs,ny,nx) dimension
+# OUTPUTS:
+#   newC: the newly standardized CNN subgrids in (nobs,ny,nx) dimension, each with mean zero and standard deviation of 1
+# DEPENDENCIES:
+#   pytorch
+def standardize_CNN_subgrids(rawC):
+    # collect dimension information, presuming (nobs,ny,nx) format
+    nobs,ny,nx = rawC.shape
+    # reshape rawC into (nobs,ny*nx) format
+    rawC = rawC.reshape((nobs,ny*nx))
+    # generate mean and stdv tensors of same dimension by repeating the axis=1 mean or stdv across (nobs,)
+    meanC = rawC.mean(axis=1).repeat(ny*nx,1).T
+    stdvC = rawC.std(axis=1).repeat(ny*nx,1).T
+    # standardize rawC as newC and reshape to (nobs,ny,nx) format
+    newC = torch.div(torch.sub(rawC, meanC), stdvC).reshape((nobs,ny,nx))
+    return newC
+
 # CNNDataset: Dataset class for CNN tensors
 #
 # To use:
@@ -34,7 +56,9 @@ class CNNDataset(Dataset):
         cnnTMP_np = np.load(npy_path)
         # generate tensors from numpy arrays (presumed to be temperature subgrids)
         cnnTMPTen = torch.from_numpy(cnnTMP_np)
-        return cnnTMPTen 
+        # standardize CNN subgrids to mean=0, stdv=1 for each grid
+        cnnTMPTenStand = standardize_CNN_subgrids(cnnTMPTen)
+        return cnnTMPTenStand
 
 
 # SuperobDataset: Dataset class for superob tensors
