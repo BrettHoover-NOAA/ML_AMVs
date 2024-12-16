@@ -22,35 +22,13 @@ import glob
 import pytorch_dependencies
 import argparse
 import pickle
+import time
 # set random seed for reproducibility
 #torch.manual_seed(0)
 # define SupErrNetv2: ReLu stack CNN + linear/leakyReLU stack NN estimating a single predictand from both image and predictor data
 class SupErrNetv2(nn.Module):
     def __init__(self):
         super(SupErrNetv2, self).__init__()
-        # define convolutional neural network that processes 2d field into inputs to FC network
-        self.cnn = nn.Sequential(
-                                 # input (1,21,21) array, return unpadded (3,19,19) array with (3,3) kernel
-                                 nn.Conv2d(in_channels=1,  # input features, e.g. number of 2D variables being passed
-                                           out_channels=3, # output features: e.g. nodes of hidden layer
-                                           kernel_size=(3, 3), # can adjust
-                                           stride=1, # default
-                                           padding=0), # padding added
-                                 nn.ReLU(),
-                                 # pool with (2,2) kernel to reduce to (3,9,9) array
-                                 nn.MaxPool2d((2, 2)),
-                                 # input (3,9,9) array, return padded (3,7,7) array with (3,3) kernel
-                                 nn.Conv2d(in_channels=3,  # input features, e.g. number of 2D variables being passed
-                                           out_channels=3, # output features: e.g. nodes of hidden layer
-                                           kernel_size=(3, 3), # can adjust
-                                           stride=1, # default
-                                           padding=0), # padding added
-                                 nn.ReLU(),
-                                 # pool with (2,2) kernel to reduce to (3,3,3) array
-                                 nn.MaxPool2d((2, 2)),
-                                 # flatten to 3x3x3 = (1,27) output array
-                                 nn.Flatten()
-                                )
         # define FC network that processes input data into prediction
         self.fc = nn.Sequential(
                                 # SupErrNet v1.0 fc NN configuration
@@ -63,25 +41,14 @@ class SupErrNetv2(nn.Module):
                                 nn.Linear(23, 23),  # hidden layer 3
                                 nn.LeakyReLU(),
                                 nn.Linear(23, 1)    # output layer
-                                # SupErrNet v2.0 fc NN configuration
-                                #nn.Linear(27+36,43),  # input layer
-                                #nn.LeakyReLU(),
-                                #nn.Linear(43, 43),  # hidden layer 1
-                                #nn.LeakyReLU(),
-                                #nn.Linear(43, 43),  # hidden layer 2
-                                #nn.LeakyReLU(),
-                                #nn.Linear(43, 43),  # hidden layer 3
-                                #nn.LeakyReLU(),
-                                #nn.Linear(43, 1)    # output layer
-                               )
-        
+                               )        
+
     def forward(self, data):
         # pass data directly to FC network
         x = data
         # process inputs through FC network
         output = self.fc(x.float())
         return output
-
 
 # define internal functions
 # extract_predictors: given data from data-loader, compose predictor arrays into stacked tensor
@@ -274,9 +241,8 @@ def extract_predictands(dataset, labelset):
     # return predictands
     return predictands
 
-# train_and validate_epoch: train a given model with training/validation data-loders, storing average loss in epoch for both training and valid data
-#                           in appending lists
-def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTrainLoader, dataValidLoader, labelValidLoader, statsTuple, miniBatchSize):
+# train_epoch: train a given model with training data-loders, storing average loss in epoch for training data in appending lists
+def train_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTrainLoader, statsTuple, miniBatchSize):
     #
     # initialize lists of loss values and prediction/predictand ranges, to track progress
     #
@@ -285,20 +251,16 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
     pMaxTrain = []  # maximum predicted value, computed against training data (per-batch)
     vMinTrain = []  # minimum real value, in training data (per-batch)
     vMaxTrain = []  # maximum real value, in training data (per-batch)
-    lossValid = []  # loss value, computed against validation data (mean across all validation batches, per-epoch)
-    pMinValid = []  # minimum predicted value, computed against validation data (all validation batches, per-epoch)
-    pMaxValid = []  # maximum predicted value, computed against validation data (all validation batches, per-epoch)
-    vMinValid = []  # minimum real value, computed against validation data (all validation batches, per-epoch)
-    vMaxValid = []  # maximum real value, computed against validation data (all validation batches, per-epoch)
-    # initialize zero-array of size (100,100) to store 2D histogram of prediction vs label data from validation
-    hist2D = np.zeros((100,100))
     #
     # train model
     #
     # loop through all batches in training data-loaders
     for i in range(len(dataTrainLoader)):
+        pMin = 1.0E+18  # absurdly large number
+        pMax = -1.0E+18 # absurdly small number
         # set model to training mode (track gradients)
         model.train(True)
+        t0 = time.time()
         # extract tuples of data and labels from data-loader batch
         inputs = dataTrainLoader.dataset[i]
         labels = labelTrainLoader.dataset[i]
@@ -306,19 +268,26 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
         X = extract_predictors(inputs, statsTuple)
         # extract predictands from inputs and labels
         Y = extract_predictands(inputs, labels)
-        # filter out NaN values from all predictors, cnn, and predictands: retain only indices where all values are non-NaN
+        t1 = time.time()
+        print('extracted from data-loaders in {:.2f} seconds'.format(t1-t0), flush=True)
+        # filter out NaN values from all predictors and predictands: retain only indices where all values are non-NaN
         kp1 = torch.where(torch.isnan(inputs[0])==False)[0].numpy()  # numpy array of indicies
         for j in range(1,len(inputs)):
             kp1 = np.intersect1d(kp1,torch.where(torch.isnan(inputs[j])==False)[0].numpy())
         for j in range(len(labels)):
             kp1 = np.intersect1d(kp1,torch.where(torch.isnan(labels[j])==False)[0].numpy())
         kp = kp1
-        print('Training batch {:d} of {:d} ({:d} obs)'.format(i+1, len(dataTrainLoader), len(kp)))
+        t2 = time.time()
+        print('filtered inputs in {:.2f} seconds'.format(t2-t1), flush=True)
+        print('Training batch {:d} of {:d} ({:d} obs)'.format(i+1, len(dataTrainLoader), len(kp)), flush=True)
         X = X[:,kp]
         if len(Y.shape) == 1:
             Y = Y[kp]
         else:
             Y = Y[:,kp]
+        # update vMin and vMax for batch
+        vMin = Y.min()
+        vMax = Y.max()
         # start mini-batch loop
         kpBeg = 0
         kpEnd = 0
@@ -326,8 +295,13 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
         print('     training {:d} mini-batches (<={:d} obs), ({:.2f} < Y < {:.2f})'.format(nMiniBatches,
                                                                                            miniBatchSize,
                                                                                            Y.min().item(),
-                                                                                           Y.max().item()))
+                                                                                           Y.max().item()), flush=True)
+        t0 = time.time()
+        trainLossRunning = 0.
+        trainBatchRunning = 0.
         for k in range(nMiniBatches):
+            if k % 1000 == 0:
+                print('          miniBatch: {:d}'.format(k), flush=True)
             kpBeg = kpEnd
             kpEnd = np.min([kpEnd + miniBatchSize, len(kp)-1])
             # make predictions for this batch
@@ -340,91 +314,30 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
             optimizer.zero_grad()
             # compute gradients and adjust weights if loss is not NaN (skips learning problematic mini-batches)
             if not torch.isnan(loss):
+                trainLossRunning += loss.item()
+                trainBatchRunning += 1.
+                # update pMin and pMax for batch
+                pMin = outputs.min() if outputs.min() < pMin else pMin
+                pMax = outputs.max() if outputs.max() > pMax else pMax
                 # compute gradients of loss
                 loss.backward()
                 # adjust learning weights
                 optimizer.step()
             else:
-                print('bad mini-batch {:d}'.format(k))
-        # re-test entire batch for training loss and prediction/predictand ranges
-        model.eval()
-        with torch.no_grad():
-            outputs = model(X.T.float())
-            loss = loss_fn(outputs.T, Y[None,:].float())
-            print('     training loss for batch: {:.4E} ({:.2E} < Z < {:.2E})'.format(loss.item(),
-                                                                                      outputs.min().item(),
-                                                                                      outputs.max().item()))
-            # store loss, predictor min/max values, and predictand min/max values
-            lossTrain.append(loss.item())
-            pMinTrain.append(outputs.min().item())
-            pMaxTrain.append(outputs.max().item())
-            vMinTrain.append(Y.min().item())
-            vMaxTrain.append(Y.max().item())
-    #
-    # validate model
-    #
-    # set to evaluation mode (disables drop-out)
-    model.eval()
-    # disable gradient computation and reduce memory consumption.
-    with torch.no_grad():
-        # loop through all batches in validation data-loaders
-        validLossRunning = 0.
-        pMinRunning = 1.0e+18   # absurdly large value
-        pMaxRunning = -1.0e+18  # absurdly small value
-        vMinRunning = 1.0e+18   # absurdly large value
-        vMaxRunning = -1.0e+18  # absurdly small value
-        for i in range(len(dataValidLoader)):
-            print('Validating batch {:d} of {:d}...'.format(i+1, len(dataValidLoader)))
-            # extract tuples of data and labels from data-loader batch
-            inputsVal = dataValidLoader.dataset[i]
-            labelsVal = labelValidLoader.dataset[i]
-            # extract predictors from inputsVal
-            vX = extract_predictors(inputsVal, statsTuple)
-            # extract predictands from inputsVal and labelsVal
-            vY = extract_predictands(inputsVal, labelsVal)
-            # filter out NaN values from all predictors, cnn, and predictands: retain only indices where all values are non-NaN
-            kp1 = torch.where(torch.isnan(inputsVal[0])==False)[0].numpy()  # numpy array of indicies
-            for j in range(1,len(inputsVal)):
-                kp1 = np.intersect1d(kp1,torch.where(torch.isnan(inputsVal[j])==False)[0].numpy())
-            for j in range(len(labelsVal)):
-                kp1 = np.intersect1d(kp1,torch.where(torch.isnan(labelsVal[j])==False)[0].numpy())
-            kp = kp1
-            vX = vX[:,kp]
-            if len(Y.shape) == 1:
-                vY = vY[kp]
-            else:
-                vY = vY[:,kp]
-            # make predictions for this batch
-            vout = model(vX.T.float())
-            # compute loss
-            if len(vY.shape) == 1:
-                vloss = loss_fn(vout.T, vY[None,:].float())
-            else:
-                vloss = loss_fn(vout.T, vY.float())
-            # store loss, predictor min/max values, and predictand min/max values
-            lossValid.append(vloss.item())
-            pMinValid.append(vout.min().item())
-            pMaxValid.append(vout.max().item())
-            vMinValid.append(vY.min().item())
-            vMaxValid.append(vY.max().item())
-            # accumulate validLossRunning
-            #validLossRunning += vloss.item()
-            # update min/max
-            #pMinRunning = vout.min().item() if vout.min().item() < pMinRunning else pMinRunning
-            #pMaxRunning = vout.max().item() if vout.max().item() > pMaxRunning else pMaxRunning
-            #vMinRunning = vY.min().item() if vY.min().item() < vMinRunning else vMinRunning
-            #vMaxRunning = vY.max().item() if vY.max().item() > vMaxRunning else vMaxRunning
-            # accumulate counts in hist2D of prediction (dim=0) vs label (dim=1)
-            H, xe, ye = np.histogram2d(x=vout.detach().numpy().squeeze(),y=vY.detach().numpy().squeeze(),bins=100,range=[[0.,100.],[0.,100.]])
-            hist2D = hist2D + H
-        # store validation statistics
-        #lossValid.append(validLossRunning/float(len(dataValidLoader)))
-        #pMinValid.append(pMinRunning)
-        #pMaxValid.append(pMaxRunning)
-        #vMinValid.append(vMinRunning)
-        #vMaxValid.append(vMaxRunning)
-    # return statistics
-    return lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain, lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid, hist2D
+                print('     bad mini-batch {:d}'.format(k), flush=True)
+        t1 = time.time()
+        print('     trained all miniBatches in {:.2f} seconds'.format(t1-t0), flush=True)
+        print('     training loss for batch: {:.4E} ({:.2E} < Z < {:.2E})'.format(trainLossRunning/trainBatchRunning,
+                                                                                  pMin,
+                                                                                  pMax), flush=True)
+        # store batch prediction, validation, and loss values
+        lossTrain.append(trainLossRunning/trainBatchRunning)
+        pMinTrain.append(pMin)
+        pMaxTrain.append(pMax)
+        vMinTrain.append(vMin)
+        vMaxTrain.append(vMax)
+    # return training statistics
+    return lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain
 #
 # begin
 #
@@ -432,21 +345,12 @@ if __name__ == "__main__":
     # define argparser for inputs
     parser = argparse.ArgumentParser(description='define full-path to training/validation directories and number of training epochs')
     parser.add_argument('trainDir', metavar='TRAINDIR', type=str, help='full path to training data/label directory')
-    parser.add_argument('validDir', metavar='VALIDDIR', type=str, help='full path to validation data/label directory')
     parser.add_argument('statsFile', metavar='STATSFILE', type=str, help='full path to netCDF predictor stats file [mean,stdv,min,max]')
     parser.add_argument('epoch', metavar='EPOCH', type=int, help='current epoch to train')
     parser.add_argument('anneal', metavar='ANNEAL', type=float, help='annealing-rate applied per-epoch')
     parser.add_argument('saveDir', metavar='SAVEDIR', type=str, help='full path to save directory to save model, training stats')
     parser.add_argument('saveName', metavar='SAVEDIR', type=str, help='model-name to save model, training stats')
     userInputs = parser.parse_args()
-    #userInputs = parser.parse_args([ 'training/',
-    #                                 'validation/',
-    #                                 '/scratch1/NCEPDEV/da/Brett.Hoover/ML_AMVs/superob_stats.nc',
-    #                                 '0',
-    #                                 '0.25',
-    #                                 './',
-    #                                 'SupErrNetv1.0'
-    #                               ])
     # quality control saveDir, add '/' at end if not present
     saveDir = userInputs.saveDir if userInputs.saveDir[-1]=='/' else userInputs.saveDir + '/'
     # load statsFile and extract predictor statistics
@@ -486,12 +390,7 @@ if __name__ == "__main__":
     #   training data-loaders
     superobTrainLoader = DataLoader(superobTrainDataSet, batch_size=None, shuffle=False, num_workers=0)
     labelTrainLoader = DataLoader(labelTrainDataSet, batch_size=None, shuffle=False, num_workers=0)
-    #   validation datasets
-    superobValidDataSet = pytorch_dependencies.SuperobDataset(dataDir=userInputs.validDir)
-    labelValidDataSet = pytorch_dependencies.LabelDataset(dataDir=userInputs.validDir)
-    #   validation data-loaders
-    superobValidLoader = DataLoader(superobValidDataSet, batch_size=None, shuffle=False, num_workers=0)
-    labelValidLoader = DataLoader(labelValidDataSet, batch_size=None, shuffle=False, num_workers=0)
+    # define learning rate
     anneal = userInputs.anneal
     baseLearningRate = 4e-5
     learningRate = baseLearningRate
@@ -503,27 +402,21 @@ if __name__ == "__main__":
         for g in optimizer.param_groups:
             g['lr'] = anneal * g['lr']
     # train epoch
-    (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain,
-     lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid, hist2D) = train_and_validate_epoch(model,
-                                                                                               lossFunc,
-                                                                                               optimizer,
-                                                                                               superobTrainLoader,
-                                                                                               labelTrainLoader,
-                                                                                               superobValidLoader,
-                                                                                               labelValidLoader,
-                                                                                               statsTuple,
-                                                                                               miniBatchSize=32)
+    (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain) = train_epoch(model,
+                                                                          lossFunc,
+                                                                          optimizer,
+                                                                          superobTrainLoader,
+                                                                          labelTrainLoader,
+                                                                          statsTuple,
+                                                                          miniBatchSize=128)
     # save model to saveDir
     torch.save(model.state_dict(), saveDir + userInputs.saveName + "E{:d}".format(epoch))
     # save optimizer state to saveDir
     torch.save(optimizer.state_dict(), saveDir + userInputs.saveName + "E{:d}_optimizer".format(epoch))
     # save pickle-file containing training statistics
-    picklePayload = (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain,
-                     lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid)
-    with open(saveDir + userInputs.saveName + "E{:d}".format(epoch) + '.pkl', 'wb') as f:
+    picklePayload = (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain)
+    with open(saveDir + userInputs.saveName + "E{:d}".format(epoch) + '_training.pkl', 'wb') as f:
         pickle.dump(picklePayload, f)
-    # save .npy file containing hist2D counts
-    np.save(saveDir + userInputs.saveName + "E{:d}".format(epoch), hist2D)
 #
 # end
 #

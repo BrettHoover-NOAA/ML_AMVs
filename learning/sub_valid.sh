@@ -3,13 +3,13 @@ runDir=`pwd`
 validDir=${runDir}/validation
 statsFile=/scratch1/NCEPDEV/da/Brett.Hoover/ML_AMVs/superob_stats.nc
 nEpochs=10
-modelName=SupErrNet_v2.1
+modelName=SupErrNet_v1.0
 
-runTime=8:00:00
+runTime=2:00:00
 
 ####################################################################################
 # loop through epochs starting from zero
-let epoch=0
+let epoch=8
 while [ ${epoch} -lt ${nEpochs} ]
 do
     # generate jobID based on modelName and epoch

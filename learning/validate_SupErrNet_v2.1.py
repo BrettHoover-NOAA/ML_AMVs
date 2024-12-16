@@ -405,7 +405,7 @@ if __name__ == "__main__":
                                                                                      statsTuple)
     # save pickle-file containing validation statistics
     picklePayload = (lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid)
-    with open(saveDir + userInputs.saveName + "E{:d}".format(epoch) + '.pkl', 'wb') as f:
+    with open(saveDir + userInputs.saveName + "E{:d}".format(epoch) + '_validation.pkl', 'wb') as f:
         pickle.dump(picklePayload, f)
     # save .npy file containing hist2D counts
     np.save(saveDir + userInputs.saveName + "E{:d}".format(epoch), hist2D)

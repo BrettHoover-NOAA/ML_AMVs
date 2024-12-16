@@ -18,11 +18,10 @@ conda env list
 #
 # Execution
 #
-trainDir=${1}
+validDir=${1}
 statsFile=${2}
 epoch=${3}
-annealing=${4}
-runDir=${5}
-modelName=${6}
+runDir=${4}
+modelName=${5}
 
-python train_SupErrNet_v1.5.py ${trainDir} ${statsFile} ${epoch} ${annealing} ${runDir} ${modelName}
+python validate_SupErrNet_v1.0.py ${validDir} ${statsFile} ${epoch} ${runDir} ${modelName}

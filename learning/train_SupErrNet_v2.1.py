@@ -280,9 +280,8 @@ def extract_predictands(dataset, labelset):
     # return predictands
     return predictands
 
-# train_and validate_epoch: train a given model with training/validation data-loders, storing average loss in epoch for both training and valid data
-#                           in appending lists
-def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTrainLoader, cnnTrainLoader, dataValidLoader, labelValidLoader, cnnValidLoader, statsTuple, miniBatchSize):
+# train_epoch: train a given model with training data-loders, storing average loss in epoch for training data in appending lists
+def train_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTrainLoader, cnnTrainLoader, statsTuple, miniBatchSize):
     #
     # initialize lists of loss values and prediction/predictand ranges, to track progress
     #
@@ -291,13 +290,6 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
     pMaxTrain = []  # maximum predicted value, computed against training data (per-batch)
     vMinTrain = []  # minimum real value, in training data (per-batch)
     vMaxTrain = []  # maximum real value, in training data (per-batch)
-    lossValid = []  # loss value, computed against validation data (mean across all validation batches, per-epoch)
-    pMinValid = []  # minimum predicted value, computed against validation data (all validation batches, per-epoch)
-    pMaxValid = []  # maximum predicted value, computed against validation data (all validation batches, per-epoch)
-    vMinValid = []  # minimum real value, computed against validation data (all validation batches, per-epoch)
-    vMaxValid = []  # maximum real value, computed against validation data (all validation batches, per-epoch)
-    # initialize zero-array of size (100,100) to store 2D histogram of prediction vs label data from validation
-    hist2D = np.zeros((100,100))
     #
     # train model
     #
@@ -389,94 +381,8 @@ def train_and_validate_epoch(model, loss_fn, optimizer, dataTrainLoader, labelTr
         pMaxTrain.append(pMax)
         vMinTrain.append(vMin)
         vMaxTrain.append(vMax)
-        # re-test entire batch for training loss and prediction/predictand ranges
-        # turning this off for now
-        #model.eval()
-        #t0 = time.time()
-        #with torch.no_grad():
-        #    outputs = model(C.float().unsqueeze(dim=1), X.T.float())
-        #    loss = loss_fn(outputs.T, Y[None,:].float())
-        #    print('     training loss for batch: {:.4E} ({:.2E} < Z < {:.2E})'.format(loss.item(),
-        #                                                                              outputs.min().item(),
-        #                                                                              outputs.max().item()))
-        #    # store loss, predictor min/max values, and predictand min/max values
-        #    lossTrain.append(loss.item())
-        #    pMinTrain.append(outputs.min().item())
-        #    pMaxTrain.append(outputs.max().item())
-        #    vMinTrain.append(Y.min().item())
-        #    vMaxTrain.append(Y.max().item())
-        #t1 = time.time()
-        #print('retrained whole batch in {:.2f} seconds'.format(t1-t0))
-    #
-    # validate model
-    #
-    # set to evaluation mode (disables drop-out)
-    model.eval()
-    # disable gradient computation and reduce memory consumption.
-    with torch.no_grad():
-        # loop through all batches in validation data-loaders
-        validLossRunning = 0.
-        pMinRunning = 1.0e+18   # absurdly large value
-        pMaxRunning = -1.0e+18  # absurdly small value
-        vMinRunning = 1.0e+18   # absurdly large value
-        vMaxRunning = -1.0e+18  # absurdly small value
-        for i in range(0): #range(len(dataValidLoader)):
-            print('Validating batch {:d} of {:d}...'.format(i+1, len(dataValidLoader)), flush=True)
-            # extract tuples of data and labels from data-loader batch
-            inputsVal = dataValidLoader.dataset[i]
-            labelsVal = labelValidLoader.dataset[i]
-            # extract CNN image data
-            cnnVal = cnnValidLoader.dataset[i]
-            # extract predictors from inputsVal
-            vX = extract_predictors(inputsVal, statsTuple)
-            # extract predictands from inputsVal and labelsVal
-            vY = extract_predictands(inputsVal, labelsVal)
-            # filter out NaN values from all predictors, cnn, and predictands: retain only indices where all values are non-NaN
-            kp1 = torch.where(torch.isnan(inputsVal[0])==False)[0].numpy()  # numpy array of indicies
-            for j in range(1,len(inputsVal)):
-                kp1 = np.intersect1d(kp1,torch.where(torch.isnan(inputsVal[j])==False)[0].numpy())
-            for j in range(len(labelsVal)):
-                kp1 = np.intersect1d(kp1,torch.where(torch.isnan(labelsVal[j])==False)[0].numpy())
-            # further filter out any index where vC.sum(axis=1)=0. (all zero values)
-            vC = cnnVal.reshape((cnnVal.size()[0], cnnVal.size()[1]*cnnVal.size()[2]))
-            kp2 = torch.where(np.isnan(vC.sum(axis=1))==False)[0].numpy()
-            kp = np.intersect1d(kp1, kp2)
-            vX = vX[:,kp]
-            if len(Y.shape) == 1:
-                vY = vY[kp]
-            else:
-                vY = vY[:,kp]
-            # make predictions for this batch
-            vout = model(vC.float().unsqueeze(dim=1), vX.T.float())
-            # compute loss
-            if len(vY.shape) == 1:
-                vloss = loss_fn(vout.T, vY[None,:].float())
-            else:
-                vloss = loss_fn(vout.T, vY.float())
-            # store validation statistics
-            lossValid.append(vloss.item())
-            pMinValid.append(vout.min().item())
-            pMaxValid.append(vout.max().item())
-            vMinValid.append(vY.min().item())
-            vMaxValid.append(vY.max().item())
-            # accumulate counts in hist2D of prediction (dim=0) vs label (dim=1)
-            H, xe, ye = np.histogram2d(x=vout.detach().numpy().squeeze(),y=vY.detach().numpy().squeeze(),bins=100,range=[[0.,100.],[0.,100.]])
-            hist2D = hist2D + H
-            # accumulate validLossRunning
-            #validLossRunning += vloss.item()
-            # update min/max
-            #pMinRunning = vout.min().item() if vout.min().item() < pMinRunning else pMinRunning
-            #pMaxRunning = vout.max().item() if vout.max().item() > pMaxRunning else pMaxRunning
-            #vMinRunning = vY.min().item() if vY.min().item() < vMinRunning else vMinRunning
-            #vMaxRunning = vY.max().item() if vY.max().item() > vMaxRunning else vMaxRunning
-        # store validation statistics
-        #lossValid.append(validLossRunning/float(len(dataValidLoader)))
-        #pMinValid.append(pMinRunning)
-        #pMaxValid.append(pMaxRunning)
-        #vMinValid.append(vMinRunning)
-        #vMaxValid.append(vMaxRunning)
-    # return statistics
-    return lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain, lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid, hist2D
+    # return training statistics
+    return lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain
 #
 # begin
 #
@@ -484,21 +390,12 @@ if __name__ == "__main__":
     # define argparser for inputs
     parser = argparse.ArgumentParser(description='define full-path to training/validation directories and number of training epochs')
     parser.add_argument('trainDir', metavar='TRAINDIR', type=str, help='full path to training data/label directory')
-    parser.add_argument('validDir', metavar='VALIDDIR', type=str, help='full path to validation data/label directory')
     parser.add_argument('statsFile', metavar='STATSFILE', type=str, help='full path to netCDF predictor stats file [mean,stdv,min,max]')
     parser.add_argument('epoch', metavar='EPOCH', type=int, help='current epoch to train')
     parser.add_argument('anneal', metavar='ANNEAL', type=float, help='annealing-rate applied per-epoch')
     parser.add_argument('saveDir', metavar='SAVEDIR', type=str, help='full path to save directory to save model, training stats')
     parser.add_argument('saveName', metavar='SAVEDIR', type=str, help='model-name to save model, training stats')
     userInputs = parser.parse_args()
-    #userInputs = parser.parse_args([ 'training/',
-    #                                 'training/',
-    #                                 '/scratch1/NCEPDEV/da/Brett.Hoover/ML_AMVs/superob_stats.nc',
-    #                                 '0',
-    #                                 '0.25',
-    #                                 './',
-    #                                 'SupErrNetv2.0'
-    #                               ])
     # quality control saveDir, add '/' at end if not present
     saveDir = userInputs.saveDir if userInputs.saveDir[-1]=='/' else userInputs.saveDir + '/'
     # load statsFile and extract predictor statistics
@@ -540,14 +437,7 @@ if __name__ == "__main__":
     superobTrainLoader = DataLoader(superobTrainDataSet, batch_size=None, shuffle=False, num_workers=0)
     labelTrainLoader = DataLoader(labelTrainDataSet, batch_size=None, shuffle=False, num_workers=0)
     cnnTrainLoader = DataLoader(cnnTrainDataSet, batch_size=None, shuffle=False, num_workers=0)
-    #   validation datasets
-    superobValidDataSet = pytorch_dependencies.SuperobDataset(dataDir=userInputs.validDir)
-    labelValidDataSet = pytorch_dependencies.LabelDataset(dataDir=userInputs.validDir)
-    cnnValidDataSet = pytorch_dependencies.CNNDataset(dataDir=userInputs.validDir)
-    #   validation data-loaders
-    superobValidLoader = DataLoader(superobValidDataSet, batch_size=None, shuffle=False, num_workers=0)
-    labelValidLoader = DataLoader(labelValidDataSet, batch_size=None, shuffle=False, num_workers=0)
-    cnnValidLoader = DataLoader(cnnValidDataSet, batch_size=None, shuffle=False, num_workers=0)
+    # define learning rate
     anneal = userInputs.anneal
     baseLearningRate = 4e-5
     learningRate = baseLearningRate
@@ -559,29 +449,22 @@ if __name__ == "__main__":
         for g in optimizer.param_groups:
             g['lr'] = anneal * g['lr']
     # train epoch
-    (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain,
-     lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid, hist2D) = train_and_validate_epoch(model,
-                                                                                               lossFunc,
-                                                                                               optimizer,
-                                                                                               superobTrainLoader,
-                                                                                               labelTrainLoader,
-                                                                                               cnnTrainLoader,
-                                                                                               superobValidLoader,
-                                                                                               labelValidLoader,
-                                                                                               cnnValidLoader,
-                                                                                               statsTuple,
-                                                                                               miniBatchSize=128)
+    (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain) = train_epoch(model,
+                                                                          lossFunc,
+                                                                          optimizer,
+                                                                          superobTrainLoader,
+                                                                          labelTrainLoader,
+                                                                          cnnTrainLoader,
+                                                                          statsTuple,
+                                                                          miniBatchSize=128)
     # save model to saveDir
     torch.save(model.state_dict(), saveDir + userInputs.saveName + "E{:d}".format(epoch))
     # save optimizer state to saveDir
     torch.save(optimizer.state_dict(), saveDir + userInputs.saveName + "E{:d}_optimizer".format(epoch))
     # save pickle-file containing training statistics
-    picklePayload = (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain,
-                     lossValid, vMinValid, vMaxValid, pMinValid, pMaxValid)
-    with open(saveDir + userInputs.saveName + "E{:d}".format(epoch) + '.pkl', 'wb') as f:
+    picklePayload = (lossTrain, vMinTrain, vMaxTrain, pMinTrain, pMaxTrain)
+    with open(saveDir + userInputs.saveName + "E{:d}".format(epoch) + '_training.pkl', 'wb') as f:
         pickle.dump(picklePayload, f)
-    # save .npy file containing hist2D counts
-    np.save(saveDir + userInputs.saveName + "E{:d}".format(epoch), hist2D)
 #
 # end
 #
