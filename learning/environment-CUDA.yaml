@@ -1,0 +1,23 @@
+name: ML-learning-CUDA
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python
+  - numpy
+  - matplotlib
+  - netcdf4
+  - cartopy
+  - jupyter
+  - xarray
+  - cfgrib
+  - pandas
+  - geopandas
+  - metpy
+  - pytorch-gpu
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.4
+  - pip
+  - pip:
