@@ -339,7 +339,7 @@ if __name__ == "__main__":
     # load model state for selected epoch
     epoch = userInputs.epoch
     model = SupErrNetv2().to('cpu')
-    model.load_state_dict(torch.load(saveDir + userInputs.saveName + "E{:d}".format(epoch)))
+    model.load_state_dict(torch.load(saveDir + userInputs.saveName + "E{:d}".format(epoch), map_location=torch.device('cpu')))
     # define loss function
     lossFunc = torch.nn.MSELoss()
     # define data-loaders from dataset classes
